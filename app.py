@@ -224,7 +224,7 @@ if analyze_btn:
             
             # Show indicator if backup model was used
             if used_backup:
-                st.warning("⚠️ Daily Rate Limit reached on Primary Model. Switched to Backup Model (Llama-3.1-8b).")
+                st.warning("⚠️ Daily Rate Limit reached on Primary Model. Switched to Backup Model (groq/compound).")
                 
             st.markdown(f"### Qualitative Score: :blue[{total_qual_score} / 20]")
 
