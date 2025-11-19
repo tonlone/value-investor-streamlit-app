@@ -18,19 +18,28 @@ st.markdown("""
     .stProgress > div > div > div > div {
         background-image: linear-gradient(to right, #ff4b4b, #ffa500, #21c354);
     }
+    .multiplier-box {
+        font-size: 40px;
+        font-weight: bold;
+        text-align: center;
+        padding: 10px;
+        border-radius: 10px;
+        background-color: #f9f9f9;
+        margin-top: 10px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# --- API KEY SETUP (FROM SECRETS) ---
+# --- API KEY SETUP ---
+# Ensure you have a .streamlit/secrets.toml file with GROQ_API_KEY = "your_key"
 try:
-    # This pulls the key securely from your Streamlit Cloud settings
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-except FileNotFoundError:
-    st.error("⚠️ Secret 'GROQ_API_KEY' not found. Please add it to your Streamlit Secrets.")
-    st.stop()
-except KeyError:
-    st.error("⚠️ Secret 'GROQ_API_KEY' not found. Please add it to your Streamlit Secrets.")
-    st.stop()
+except (FileNotFoundError, KeyError):
+    # Fallback for local testing if secrets file isn't set up
+    GROQ_API_KEY = st.sidebar.text_input("Enter Groq API Key", type="password")
+    if not GROQ_API_KEY:
+        st.warning("⚠️ Please enter a Groq API Key in the sidebar or set it in .streamlit/secrets.toml")
+        st.stop()
 
 # Initialize Groq Client
 client = Groq(api_key=GROQ_API_KEY)
@@ -43,19 +52,20 @@ def get_stock_data(ticker):
         stock = yf.Ticker(ticker)
         info = stock.info
         
-        # If stock info is empty, ticker might be wrong
         if not info:
             return None
 
         current_price = info.get('currentPrice', 0)
+        # Fallback if currentPrice is missing
         if current_price == 0:
-            # Try to get price from history if currentPrice is missing
             hist = stock.history(period="1d")
             if not hist.empty:
                 current_price = hist['Close'].iloc[-1]
 
         eps_fwd = info.get('forwardEps', 1)
-        if eps_fwd is None: eps_fwd = 1 
+        # Avoid division by zero or None
+        if eps_fwd is None or eps_fwd == 0: 
+            eps_fwd = info.get('trailingEps', 1) # Fallback to trailing
         
         # Calculate Forward PE
         fwd_pe = current_price / eps_fwd if eps_fwd > 0 else 0
@@ -75,23 +85,20 @@ def get_stock_data(ticker):
 def analyze_qualitative(ticker, summary, topic):
     """Uses Groq Llama 3.3 to rate specific qualitative aspects 0-4"""
     prompt = f"""
-    You are a strict Value Investor (Warren Buffett style). Analyze {ticker}.
+    You are a strict Value Investor. Analyze {ticker}.
     Context: {summary}
     
     Topic: {topic}
     
     Task:
-    1. Give a score from 0 to 4 integers only (0=Terrible/No Moat, 4=Excellent/Monopoly).
-    2. Provide a 1-sentence explanation focusing on competitive advantage (Moat).
+    1. Give a score from 0 to 4 integers only (0=Terrible, 4=Excellent).
+    2. Provide a 1-sentence explanation.
     
     Format: SCORE|EXPLANATION
-    Example: 4|Nvidia has a near-monopoly in AI chips with CUDA lock-in.
     """
     
     try:
         completion = client.chat.completions.create(
-            # UPDATED MODEL: The old one was decommissioned. 
-            # Using Llama 3.3 70B which is currently the best/fastest on Groq.
             model="llama-3.3-70b-versatile", 
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
@@ -108,7 +115,6 @@ with st.sidebar:
     analyze_btn = st.button("Analyze Stock", type="primary")
     
     st.markdown("---")
-    st.caption("✅ API Key loaded from Secrets")
     st.info("**Methodology:**\n\nQualitative Score (0-20) \n\n× \n\nValuation Multiplier (1-5) \n\n= **Final Score (0-100)**")
 
 # --- MAIN APP LOGIC ---
@@ -125,21 +131,20 @@ if analyze_btn:
         
         # --- LEFT COLUMN: QUALITATIVE ANALYSIS ---
         with col1:
-            st.subheader("1. Qualitative Analysis (The Business)")
+            st.subheader("1. Qualitative Analysis")
             
             topics = [
-                "Selling Unique Products/Services (Hard to replicate?)",
-                "Long-term Revenue Growth Potential",
-                "Competitive Advantage (Moat & Market Leader?)",
-                "Profitability & Margins",
-                "Management Quality & Allocation"
+                "Unique Product/Service (Moat)",
+                "Revenue Growth Potential",
+                "Competitive Advantage",
+                "Profit Stability",
+                "Management & Allocation"
             ]
             
             total_qual_score = 0
             progress_bar = st.progress(0)
             
             for i, topic in enumerate(topics):
-                # Update progress bar
                 progress_bar.progress((i) / len(topics))
                 
                 with st.chat_message("assistant", avatar="🤖"):
@@ -170,17 +175,10 @@ if analyze_btn:
                 st.metric("Current Price", f"${data['price']:.2f}")
                 st.metric("Forward PE Ratio", f"{data['fwd_pe']:.2f}")
                 
-                # --- Valuation Logic ---
                 pe = data['fwd_pe']
                 
-                # Dynamic Logic: 
-                # < 20 PE = x5
-                # 20-35 PE = x4
-                # 35-50 PE = x3
-                # 50-75 PE = x2
-                # > 75 PE = x1
-                
-                if pe <= 0: multiplier = 1 # Negative earnings
+                # Multiplier Logic
+                if pe <= 0: multiplier = 1 
                 elif pe < 20: multiplier = 5
                 elif pe < 35: multiplier = 4
                 elif pe < 50: multiplier = 3
@@ -190,35 +188,51 @@ if analyze_btn:
                 st.divider()
                 st.markdown("#### Valuation Multiplier")
                 
-                color_map = {5: "green", 4: "lightgreen", 3: "orange", 2: "red", 1: "darkred"}
+                # --- FIX: USING HTML INSTEAD OF MARKDOWN FOR CUSTOM COLORS ---
+                # This fixes the issue where "darkred" or "lightgreen" showed as text
+                html_colors = {
+                    5: "#00C805", # Bright Green
+                    4: "#90EE90", # Light Green
+                    3: "#FFA500", # Orange
+                    2: "#FF4500", # Orange Red
+                    1: "#8B0000"  # Dark Red
+                }
                 
-                st.markdown(f"### :{color_map[multiplier]}[x{multiplier}]")
+                color_hex = html_colors.get(multiplier, "#333333")
                 
+                st.markdown(
+                    f"""
+                    <div class="multiplier-box" style="color: {color_hex}; border: 2px solid {color_hex};">
+                        x{multiplier}
+                    </div>
+                    """, 
+                    unsafe_allow_html=True
+                )
+
                 if multiplier == 5:
-                    st.caption("Stock is Cheap (PE < 20)")
+                    st.caption("✅ Undervalued (PE < 20)")
                 elif multiplier == 1:
-                    st.caption("Stock is Very Expensive (PE > 75)")
+                    st.caption("⚠️ Very Expensive (PE > 75)")
                 else:
-                    st.caption(f"Fair/Premium Valuation (PE ~{int(pe)})")
+                    st.caption(f"⚖️ Fair/Premium Valuation (PE ~{int(pe)})")
 
         # --- FINAL RESULT ---
         st.markdown("---")
         final_score = total_qual_score * multiplier
         
-        # Determine Color and Verdict
         if final_score >= 75:
             verdict = "STRONG BUY 🚀"
-            final_color = "#00C805" # Green
+            final_color = "#00C805"
         elif final_score >= 45:
             verdict = "HOLD / WATCH 👀"
-            final_color = "#FFA500" # Orange
+            final_color = "#FFA500"
         else:
             verdict = "AVOID / SELL 🔻"
-            final_color = "#FF0000" # Red
+            final_color = "#FF0000"
 
         st.markdown(f"""
-        <div style="text-align: center; padding: 20px; border: 2px solid {final_color}; border-radius: 15px;">
-            <h2>FINAL SCORE</h2>
+        <div style="text-align: center; padding: 20px; border: 2px solid {final_color}; border-radius: 15px; background-color: #fff;">
+            <h2>FINAL EVALUATION</h2>
             <h1 style="color: {final_color}; font-size: 80px; margin: 0;">{final_score}</h1>
             <h3>{verdict}</h3>
         </div>
@@ -227,4 +241,4 @@ if analyze_btn:
         st.warning("Disclaimer: AI generated analysis. Not financial advice.")
         
     elif analyze_btn:
-        st.error("Ticker not found or data unavailable. Please check the spelling (e.g., AAPL, TSLA).")
+        st.error("Ticker not found. Please check spelling.")
