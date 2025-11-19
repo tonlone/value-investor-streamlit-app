@@ -53,20 +53,25 @@ def get_stock_data(ticker):
         if not info:
             return None
 
+        # 1. Get Price
         current_price = info.get('currentPrice', 0)
         if current_price == 0:
             hist = stock.history(period="1d")
             if not hist.empty:
                 current_price = hist['Close'].iloc[-1]
 
-        eps_fwd = info.get('forwardEps', 1)
+        # 2. Get EPS (Forward or Trailing)
+        eps_fwd = info.get('forwardEps', 0)
         if eps_fwd is None or eps_fwd == 0: 
-            eps_fwd = info.get('trailingEps', 1) 
+            eps_fwd = info.get('trailingEps', 0) 
         
-        fwd_pe = current_price / eps_fwd if eps_fwd > 0 else 0
+        # 3. Calculate PE
+        # If EPS is negative or zero, set PE to 0 (logic handles this later)
+        fwd_pe = current_price / eps_fwd if eps_fwd and eps_fwd > 0 else 0
         
         return {
             "price": current_price,
+            "currency": info.get('currency', 'USD'),
             "fwd_pe": fwd_pe,
             "eps_fwd": eps_fwd,
             "name": info.get('longName', ticker),
@@ -103,12 +108,20 @@ def analyze_qualitative(ticker, summary, topic):
     except Exception as e:
         return f"0|Error analyzing: {e}"
 
-# --- SIDEBAR (With Form for Enter Key Support) ---
+# --- SIDEBAR ---
 with st.sidebar:
     st.title("⚙️ Analysis Tool")
     
     with st.form(key='search_form'):
-        ticker_input = st.text_input("Enter US Stock Ticker", value="NVDA", max_chars=5).upper()
+        # 1. Market Selection
+        market_choice = st.selectbox(
+            "Select Market", 
+            ["US (NYSE/NASDAQ)", "Canada (TSX)", "Hong Kong (HKEX)"]
+        )
+        
+        # 2. Ticker Input
+        raw_ticker = st.text_input("Enter Stock Ticker", value="NVDA", max_chars=8).upper().strip()
+        
         analyze_btn = st.form_submit_button("Analyze Stock", type="primary")
     
     st.markdown("---")
@@ -117,12 +130,29 @@ with st.sidebar:
 # --- MAIN APP LOGIC ---
 
 if analyze_btn:
-    with st.spinner(f'🔍 Fetching financial data for {ticker_input}...'):
-        data = get_stock_data(ticker_input)
+    
+    # --- TICKER FORMATTING LOGIC ---
+    final_ticker = raw_ticker
+    
+    if market_choice == "Canada (TSX)":
+        # Append .TO if user didn't add it (and didn't add .V for Venture)
+        if ".TO" not in raw_ticker and ".V" not in raw_ticker:
+            final_ticker = f"{raw_ticker}.TO"
+            
+    elif market_choice == "Hong Kong (HKEX)":
+        # HK Tickers need 4 digits and .HK (e.g. 700 -> 0700.HK)
+        clean_nums = ''.join(filter(str.isdigit, raw_ticker)) # Remove dots/letters
+        if clean_nums:
+            final_ticker = f"{clean_nums.zfill(4)}.HK"
+        else:
+            final_ticker = f"{raw_ticker}.HK"
+
+    with st.spinner(f'🔍 Fetching data for {final_ticker}...'):
+        data = get_stock_data(final_ticker)
     
     if data and data['price'] > 0:
-        st.header(f"{data['name']} ({ticker_input})")
-        st.caption(f"Industry: {data['industry']}")
+        st.header(f"{data['name']} ({final_ticker})")
+        st.caption(f"Industry: {data['industry']} | Currency: {data['currency']}")
         
         col1, col2 = st.columns([3, 2])
         
@@ -146,7 +176,7 @@ if analyze_btn:
                 
                 with st.chat_message("assistant", avatar="🤖"):
                     st.write(f"Analyzing: **{topic}**...")
-                    response = analyze_qualitative(ticker_input, data['summary'], topic)
+                    response = analyze_qualitative(data['name'], data['summary'], topic)
                     
                     try:
                         score_str, explanation = response.split('|', 1)
@@ -168,7 +198,8 @@ if analyze_btn:
             st.subheader("2. Quantitative Valuation")
             
             with st.container(border=True):
-                st.metric("Current Price", f"${data['price']:.2f}")
+                # Display Price with Currency
+                st.metric(f"Price ({data['currency']})", f"{data['price']:.2f}")
                 st.metric("Forward PE Ratio", f"{data['fwd_pe']:.2f}")
                 
                 pe = data['fwd_pe']
@@ -219,7 +250,6 @@ if analyze_btn:
             verdict = "AVOID / SELL 🔻"
             final_color = "#FF0000"
 
-        # --- FIX: Added 'color: black' to h2 and h3 to ensure visibility on white background ---
         st.markdown(f"""
         <div style="text-align: center; padding: 20px; border: 4px solid {final_color}; border-radius: 15px; background-color: #ffffff;">
             <h2 style="color: #333333; margin:0;">FINAL EVALUATION</h2>
@@ -231,4 +261,4 @@ if analyze_btn:
         st.warning("Disclaimer: AI generated analysis. Not financial advice.")
         
     elif analyze_btn:
-        st.error("Ticker not found. Please check spelling.")
+        st.error(f"Ticker '{final_ticker}' not found. Please check spelling or market selection.")
