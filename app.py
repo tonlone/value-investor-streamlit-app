@@ -15,7 +15,7 @@ if 'language' not in st.session_state:
 def toggle_language():
     st.session_state.language = 'CN' if st.session_state.language == 'EN' else 'EN'
 
-# --- TRANSLATION DICTIONARY (Static to save tokens) ---
+# --- TRANSLATION DICTIONARY (Fixed Missing Keys) ---
 T = {
     "EN": {
         "sidebar_title": "Analysis Tool",
@@ -73,6 +73,12 @@ T = {
         "fin_roa": "ROA", "fin_roe": "ROE",
         "fin_eps": "EPS (ttm)", "fin_rev": "Revenue (ttm)",
         "fin_div_yield": "Dividend Yield", "fin_target": "Target Price",
+        
+        # --- MISSING KEYS FIXED HERE ---
+        "uptrend": "Uptrend", "downtrend": "Downtrend", 
+        "weak_uptrend": "Weak Uptrend", "neutral": "Neutral",
+        # -------------------------------
+
         "act_buy_sup": "BUY (Support Bounce) 🟢", "act_buy_break": "STRONG BUY (Breakout) 🚀",
         "act_prep": "PREPARE TO BUY (VCP) 🔵", "act_profit": "HOLD / TAKE PROFIT 🟠",
         "act_buy_hold": "BUY / HOLD 🟢", "act_sell_sup": "SELL / AVOID 🔴",
@@ -138,6 +144,12 @@ T = {
         "fin_roa": "ROA", "fin_roe": "ROE",
         "fin_eps": "每股盈利", "fin_rev": "總營收",
         "fin_div_yield": "股息率", "fin_target": "目標價",
+        
+        # --- MISSING KEYS FIXED HERE ---
+        "uptrend": "上升趨勢", "downtrend": "下降趨勢", 
+        "weak_uptrend": "弱勢上升", "neutral": "中性",
+        # -------------------------------
+
         "act_buy_sup": "買入 (支持位反彈) 🟢", "act_buy_break": "強力買入 (突破) 🚀",
         "act_prep": "準備買入 (VCP擠壓) 🔵", "act_profit": "持有 / 獲利止盈 🟠",
         "act_buy_hold": "買入 / 持有 🟢", "act_sell_sup": "賣出 / 觀望 🔴",
