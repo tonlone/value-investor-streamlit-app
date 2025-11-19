@@ -69,7 +69,7 @@ def get_stock_data(ticker):
         # Get Price
         price = info.get('currentPrice', 0)
         
-        # Fetch 6mo history (We need this for the charts)
+        # Fetch 6mo history
         hist = stock.history(period="6mo")
         
         if price == 0 and not hist.empty:
@@ -247,7 +247,6 @@ if run_analysis:
                     st.metric(f"Price ({data['currency']})", f"{data['price']:.2f}")
                     st.metric("Forward PE", f"{pe:.2f}")
                     
-                    # --- 6 MONTH CHART FOR DESKTOP ---
                     st.caption("6-Month Price History")
                     st.line_chart(data['history'], height=200)
                     
@@ -267,7 +266,7 @@ if run_analysis:
             </div>
             """, unsafe_allow_html=True)
 
-        # --- VIEW B: MOBILE (1 Month Chart) ---
+        # --- VIEW B: MOBILE (Now 6 Month Chart) ---
         else:
             
             tab1, tab2, tab3 = st.tabs(["🏢 Business", "💰 Value", "🏁 Verdict"])
@@ -285,11 +284,11 @@ if run_analysis:
                 c1.metric("Price", f"{data['price']:.0f}")
                 c2.metric("PE", f"{pe:.1f}")
                 
-                # --- 1 MONTH CHART FOR MOBILE ---
-                # Slice the last 22 days (approx 1 trading month)
-                st.caption("1-Month Price Trend")
+                # --- 6 MONTH CHART FOR MOBILE ---
+                st.caption("6-Month Price Trend")
                 if not data['history'].empty:
-                    st.line_chart(data['history'].tail(22), height=150)
+                    # Removed .tail(22) to show full history
+                    st.line_chart(data['history'], height=150)
                 
                 st.markdown(f"<div class='multiplier-box' style='color:{color_code}; border:2px solid {color_code}'>x{mult}</div>", unsafe_allow_html=True)
 
