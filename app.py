@@ -23,12 +23,15 @@ T = {
         "ticker_label": "Enter Stock Ticker",
         "analyze_btn": "Analyze Stock",
         "analyze_mobile_btn": "Analyze (Mobile)",
+        
+        # Methodology Section
         "methodology": "Methodology:",
         "qual_score": "Qualitative Score (0-20)",
         "qual_detail": "(5 topics x 4 pts)",
         "val_mult": "Valuation Multiplier (1-5)",
-        "val_detail": "(Based on Hist. PE Range)",
+        "val_detail": "(Based on Forward PE Range)",
         "final_score": "= Final Score (0-100)",
+        
         "tab_value": "💎 Value Analysis",
         "tab_tech": "📈 Technical Analysis",
         "tab_fin": "📊 Financials",
@@ -41,10 +44,10 @@ T = {
         "quant_val_header": "2. Quantitative Valuation",
         "price": "Price",
         "pe_ttm": "Trailing PE (TTM)",
-        "pe_ratio": "Forward PE (Used for Calc)",
+        "pe_ratio": "Forward PE",
         "multiplier_label": "Valuation Multiplier",
         
-        # Score Calculation
+        # Score Calculation Labels
         "calc_qual": "Qualitative Score",
         "calc_mult": "Multiplier",
         "calc_result": "Final Score",
@@ -52,11 +55,11 @@ T = {
 
         # Grading
         "grading_scale": "Grading Scale:",
-        "grade_strong_buy": "Strong Buy",
-        "grade_buy": "Buy",
-        "grade_hold": "Hold",
-        "grade_sell": "Sell",
-        "grade_avoid": "Avoid",
+        "grade_strong_buy": "Very Excellent / Strong Buy",
+        "grade_buy": "Excellent / Buy",
+        "grade_hold": "Good / Hold",
+        "grade_sell": "Average / Sell",
+        "grade_avoid": "Poor / Avoid",
 
         # Technicals
         "tech_verdict": "Technical Verdict", "reason": "Reason",
@@ -93,12 +96,15 @@ T = {
         "ticker_label": "輸入股票代號",
         "analyze_btn": "開始分析",
         "analyze_mobile_btn": "開始分析 (手機版)",
+        
+        # Methodology Section
         "methodology": "分析方法:",
         "qual_score": "定性評分 (0-20)",
         "qual_detail": "(5個主題 x 4分)",
         "val_mult": "估值倍數 (1-5)",
         "val_detail": "(基於歷史 PE 區間)",
         "final_score": "= 最終評分 (0-100)",
+
         "tab_value": "💎 價值分析",
         "tab_tech": "📈 技術分析",
         "tab_fin": "📊 財務數據",
@@ -160,18 +166,40 @@ def txt(key):
 # --- CSS STYLING ---
 st.markdown("""
 <style>
+    /* Methodology Box Style */
+    .methodology-box {
+        background-color: #262730; /* Dark background from screenshot */
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #444;
+        font-size: 14px;
+        margin-top: 15px;
+        color: #ffffff;
+    }
+    .method-header {
+        color: #4da6ff; /* Streamlit Blue */
+        font-weight: bold;
+        font-size: 16px;
+        margin-bottom: 10px;
+    }
+    .method-sub {
+        color: #4da6ff;
+        font-weight: bold;
+    }
+    .method-detail {
+        color: #aaa;
+        font-size: 12px;
+    }
+
     .multiplier-box {
         font-size: 35px; font-weight: bold; text-align: center; padding: 15px; 
         border-radius: 10px; background-color: #ffffff; margin-top: 10px;
         margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
-    .methodology-box {
-        background-color: #262730; padding: 15px; border-radius: 10px;
-        border: 1px solid #444; font-size: 14px; margin-top: 20px;
-    }
     .final-score-box {
         text-align: center; padding: 20px; border-radius: 15px; 
         background-color: #ffffff; margin-top: 20px; border: 4px solid #ccc;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
     }
     .grade-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 10px; }
     .grade-table td { padding: 5px; border: 1px solid #eee; text-align: center; color: #333; }
@@ -228,23 +256,18 @@ def get_stock_data(ticker):
         if not info: return None
         
         price = info.get('currentPrice', 0)
-        
-        # 5 Year History for Min/Max PE
         hist = stock.history(period="5y")
         if price == 0 and not hist.empty: price = hist['Close'].iloc[-1]
         
-        # EPS & PE
         eps = info.get('forwardEps')
         if eps is None: eps = info.get('trailingEps')
         
         pe = info.get('forwardPE')
         if pe is None: pe = price / eps if (eps and eps > 0) else 0
 
-        # Hist PE Calc
         min_pe, max_pe = 0, 0
         if eps and eps > 0 and not hist.empty:
             pe_series = hist['Close'] / eps
-            # Filter outliers
             pe_series = pe_series[(pe_series > 0) & (pe_series < 200)]
             if not pe_series.empty:
                 min_pe = pe_series.min()
@@ -261,10 +284,7 @@ def get_stock_data(ticker):
 
 def calculate_technicals(df):
     if df.empty or len(df) < 200: return None
-    
-    # Use last 260 days for SMA 200
     df_recent = df.tail(300).copy()
-    
     df_recent['SMA_50'] = df_recent['Close'].rolling(window=50).mean()
     df_recent['SMA_200'] = df_recent['Close'].rolling(window=200).mean()
     
@@ -300,20 +320,18 @@ def calculate_technicals(df):
         "trend": trend, "rsi": df_recent['RSI'].iloc[-1], 
         "support": support, "resistance": resistance,
         "vol_ratio": vol_ratio, "is_squeezing": is_squeezing,
-        "last_price": curr_price, "data": df_recent # Return DF for plotting
+        "last_price": curr_price, "data": df_recent 
     }
 
 def analyze_qualitative(ticker, summary, topic):
     PRIMARY_MODEL = "llama-3.3-70b-versatile" 
     BACKUP_MODEL  = "llama-3.1-8b-instant"    
-    
     lang_instruction = "Answer in English."
     if st.session_state.language == 'CN':
         lang_instruction = "You MUST Output the reason in Traditional Chinese (繁體中文)."
 
     prompt = (
-        f"Analyze {ticker} regarding '{topic}'. "
-        f"Context: {summary}. "
+        f"Analyze {ticker} regarding '{topic}'. Context: {summary}. "
         f"Give a specific score from 0.0 to 4.0 (use 1 decimal place). "
         f"Provide a 1 sentence reason. {lang_instruction} "
         f"Strict Format: SCORE|REASON"
@@ -321,8 +339,7 @@ def analyze_qualitative(ticker, summary, topic):
     
     def call_groq(model_id):
         return client.chat.completions.create(
-            model=model_id, 
-            messages=[{"role": "user", "content": prompt}],
+            model=model_id, messages=[{"role": "user", "content": prompt}],
             temperature=0.1, max_tokens=150 
         )
 
@@ -358,12 +375,28 @@ with st.sidebar:
         d_ticker = st.text_input("T", value="NVDA", label_visibility="collapsed").upper()
         d_submit = st.form_submit_button(txt('analyze_btn'), type="primary") 
     
+    st.markdown("---")
+    
+    # --- ADDED BACK: MODEL INFO ---
+    st.caption("**Primary:** Llama 3.3 70B\n**Backup:** Llama 3.1 8B")
+
+    # --- FIXED: METHODOLOGY BOX ---
     st.markdown(f"""
     <div class="methodology-box">
-    <strong style="color:#4da6ff;">{txt('methodology')}</strong><br><br>
-    {txt('qual_score')} <span style="color:#aaa">{txt('qual_detail')}</span><br>
-    ✖ {txt('val_mult')} <span style="color:#aaa">{txt('val_detail')}</span><br>
-    = {txt('final_score')}
+        <div class="method-header">{txt('methodology')}</div>
+        <div style="margin-bottom:5px;">
+            <span class="method-sub">{txt('qual_score')}</span><br>
+            <span class="method-detail">{txt('qual_detail')}</span>
+        </div>
+        <div style="text-align:center; font-weight:bold; margin:5px 0;">✕</div>
+        <div style="margin-bottom:10px;">
+            <span class="method-sub">{txt('val_mult')}</span><br>
+            <span class="method-detail">{txt('val_detail')}</span>
+        </div>
+        <hr style="border-color:#555; margin:5px 0;">
+        <div style="margin-top:5px;">
+            <span class="method-sub">{txt('final_score')}</span>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -418,14 +451,12 @@ if run_analysis:
                     prog_bar.progress((i)/5)
                     res, is_backup = analyze_qualitative(data['name'], data['summary'], t_eng)
                     if is_backup: backup_used = True
-                    
                     match = re.search(r'\b([0-3](?:\.\d)?|4(?:\.0)?)\b', res)
                     if match:
                         s_str = match.group(1); s = float(s_str)
                         r = res.replace(s_str, "").replace("|", "").replace("SCORE", "").replace("REASON", "").strip().strip(' :-=\n')
                     else: s, r = 0.0, res 
                     total_qual += s
-                    
                     with st.container(border=True):
                         c1, c2 = st.columns([4, 1])
                         with c1: st.markdown(f"**{display_topics[i]}**")
@@ -435,7 +466,6 @@ if run_analysis:
                 prog_bar.empty()
                 if backup_used: st.toast("Backup Model used.", icon="⚠️")
 
-            # Valuation Logic
             pe = data['pe']
             min_pe, max_pe = data['min_pe'], data['max_pe']
             mult = 1.0
@@ -449,7 +479,6 @@ if run_analysis:
                 elif pos_pct < 0.75: mult = 3.0
                 elif pos_pct < 1.00: mult = 2.0
                 else: mult = 1.0
-            
             if mult >= 4: color_code = "#00C805"
             elif mult >= 3: color_code = "#90EE90"
             elif mult >= 2: color_code = "#FFA500"
@@ -466,17 +495,14 @@ if run_analysis:
                 st.subheader(txt('quant_val_header'))
                 with st.container(border=True):
                     st.metric(txt('price'), f"{data['price']:.2f}")
-                    # Added Trailing PE back
                     st.metric(txt('pe_ttm'), fmt_num(data['raw_info'].get('trailingPE')))
                     st.metric(txt('pe_ratio'), f"{pe:.2f}" if pe and pe > 0 else "N/A")
-                    
                     st.caption(f"PE Range (5Y): {min_pe:.1f} - {max_pe:.1f}")
                     st.progress(max(0.0, min(1.0, pos_pct)) if pe > 0 else 1.0)
-                    
                     st.subheader(txt('multiplier_label'))
                     st.markdown(f"""<div class="multiplier-box" style="border: 2px solid {color_code}; color: {color_code};">x{mult:.0f}</div>""", unsafe_allow_html=True)
 
-            # RESTORED: Score Calculation Visuals
+            # --- SCORE CALCULATION ---
             st.markdown(f"""
             <div class="final-score-box" style="border-color: {v_border}; padding: 20px;">
             <h3 style="color:#555; margin:0;">{txt('score_calc_title')}</h3>
@@ -492,7 +518,7 @@ if run_analysis:
             </div></div>
             """, unsafe_allow_html=True)
 
-            # RESTORED: Grading Scale
+            # --- GRADING SCALE ---
             with st.expander(txt('grading_scale'), expanded=False):
                 st.markdown(f"""
                 <table class="grade-table">
@@ -528,16 +554,14 @@ if run_analysis:
                 tc3.metric(txt('lbl_vol'), f"{tech['vol_ratio']:.2f}x")
                 tc4.metric(txt('squeeze'), "YES" if tech['is_squeezing'] else "No")
                 
-                # RESTORED: Support/Resistance
                 c_sup, c_res = st.columns(2)
                 c_sup.success(f"🛡️ {txt('support')}: {tech['support']:.2f}")
                 c_res.error(f"🚧 {txt('resistance')}: {tech['resistance']:.2f}")
 
-                # RESTORED: Chart with SMA
                 st.line_chart(tech['data'][['Close', 'SMA_50', 'SMA_200']], color=["#0000FF", "#FFA500", "#FF0000"])
             else: st.warning("Not enough historical data.")
 
-        # --- TAB 3: FINANCIALS (Restored Full Grid) ---
+        # --- TAB 3: FINANCIALS ---
         with tab_fin:
             i = data['raw_info']
             def row(cols):
