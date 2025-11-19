@@ -83,7 +83,7 @@ def analyze_qualitative(client, ticker, summary, topic):
     
     try:
         completion = client.chat.completions.create(
-            model="llama3-70b-8192", # High quality, fast, free on Groq
+            model="llama-3.3-70b-versatile", # High quality, fast, free on Groq
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
         )
