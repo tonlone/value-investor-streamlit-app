@@ -692,50 +692,69 @@ if run_analysis:
                     est_eps = latest_earnings.get('EPS Estimate'); ec2.metric(txt('earn_est_eps'), f"{est_eps:.2f}" if pd.notna(est_eps) else "-")
                     act_eps = latest_earnings.get('Reported EPS'); ec3.metric(txt('earn_act_eps'), f"{act_eps:.2f}" if pd.notna(act_eps) else "-")
                     surprise = latest_earnings.get('Surprise(%)'); ec4.metric(txt('earn_surprise'), f"{surprise*100:.2f}%" if pd.notna(surprise) else "-", delta="Positive" if pd.notna(surprise) and surprise > 0 else "Negative" if pd.notna(surprise) and surprise < 0 else None)
-            else: st.info("No recent earnings data available.")
+            else: st.info("No specific earnings calendar data found.")
 
             st.markdown("---")
             
             # Q/Q Trends
             st.subheader(txt('qq_title'))
             q_stmt = data['quarterly_financials']
-            if q_stmt is not None and q_stmt.shape[1] >= 2:
-                curr = q_stmt.iloc[:, 0]; prev = q_stmt.iloc[:, 1]
+            if q_stmt is not None and not q_stmt.empty and q_stmt.shape[1] >= 2:
+                curr = q_stmt.iloc[:, 0] # Latest Quarter
+                prev = q_stmt.iloc[:, 1] # Previous Quarter
+                
                 def calc_pct(cur, pre):
                     try: return ((cur - pre) / abs(pre)) * 100 if pre != 0 else None
                     except: return None
+                
                 def show_qq(label, cur_val, prev_val, is_curr=True, is_pct=False):
                     pct = calc_pct(cur_val, prev_val)
-                    disp = fmt_num(cur_val, is_currency=is_curr, is_pct=is_pct)
-                    if is_pct: disp = f"{cur_val*100:.2f}%" if pd.notna(cur_val) else "-"
-                    st.metric(label, disp, f"{pct:.2f}%" if pct is not None else "-", delta_color="normal")
+                    display_val = fmt_num(cur_val, is_currency=is_curr, is_pct=is_pct)
+                    if is_pct: display_val = f"{cur_val*100:.2f}%" if pd.notna(cur_val) else "-"
+                    st.metric(label, display_val, f"{pct:.2f}%" if pct is not None else "-", delta_color="normal")
 
                 c_q1, c_q2, c_q3 = st.columns(3)
-                with c_q1: show_qq(txt('qq_rev'), curr.get('Total Revenue'), prev.get('Total Revenue')); show_qq(txt('qq_op_inc'), curr.get('Operating Income'), prev.get('Operating Income'))
-                with c_q2: show_qq(txt('qq_net_inc'), curr.get('Net Income'), prev.get('Net Income')); show_qq(txt('qq_op_exp'), curr.get('Operating Expense'), prev.get('Operating Expense'))
-                with c_q3: 
+                with c_q1:
+                    show_qq(txt('qq_rev'), curr.get('Total Revenue'), prev.get('Total Revenue'))
+                    show_qq(txt('qq_op_inc'), curr.get('Operating Income'), prev.get('Operating Income'))
+                with c_q2:
+                    show_qq(txt('qq_net_inc'), curr.get('Net Income'), prev.get('Net Income'))
+                    show_qq(txt('qq_op_exp'), curr.get('Operating Expense'), prev.get('Operating Expense'))
+                with c_q3:
                     show_qq(txt('qq_eps'), curr.get('Basic EPS'), prev.get('Basic EPS'), is_curr=False)
                     try:
-                        gm_c = curr.get('Gross Profit') / curr.get('Total Revenue'); gm_p = prev.get('Gross Profit') / prev.get('Total Revenue')
+                        gm_c = curr.get('Gross Profit') / curr.get('Total Revenue')
+                        gm_p = prev.get('Gross Profit') / prev.get('Total Revenue')
                         diff_bps = (gm_c - gm_p) * 100
                         st.metric(txt('qq_gross_marg'), f"{gm_c*100:.2f}%", f"{diff_bps:.2f} bps")
                     except: st.metric(txt('qq_gross_marg'), "-")
-            else: st.info("Insufficient quarterly data.")
+            else: st.info("Insufficient quarterly data for Q/Q comparison.")
 
             st.markdown("---")
             st.subheader(txt('ai_summary_title'))
+            
+            # Prepare context safely
+            q_rev_disp = "N/A"
+            if q_stmt is not None and not q_stmt.empty:
+                q_rev_disp = fmt_num(q_stmt.iloc[:, 0].get('Total Revenue'), is_currency=True)
+
             news_text = ""
             if data['news']:
-                for n in data['news'][:5]: news_text += f"- {n.get('title', 'No Title')}\n"
+                for n in data['news'][:5]:
+                    news_text += f"- {n.get('title', 'No Title')}\n"
             
-            q_rev = fmt_num(q_stmt.iloc[:, 0].get('Total Revenue'), is_currency=True) if q_stmt is not None else "N/A"
-            earn_ctx = f"Last Earnings Date: {earn_date}. EPS: {latest_earnings.get('Reported EPS') if latest_earnings is not None else 'N/A'}. Revenue: {q_rev}."
+            earn_context = f"Last Earnings Date: {earn_date}. Reported EPS: {latest_earnings.get('Reported EPS') if latest_earnings is not None else 'N/A'}. Revenue: {q_rev_disp}."
+            full_context = f"{earn_context}\nRecent Headlines:\n{news_text}"
             
             with st.spinner(txt('loading_ai')):
-                summary_text, _ = analyze_qualitative(data['name'], f"{earn_ctx}\nNews:\n{news_text}", "EarningsSummary")
+                summary_text, _ = analyze_qualitative(data['name'], full_context, "EarningsSummary")
                 st.success(summary_text)
-            
-            st.markdown("---")
-            st.link_button(txt('source_link'), f"https://www.google.com/search?q={data['name']}+{final_t}+Investor+Relations+Earnings+Release")
 
-    else: st.error(f"Ticker '{final_t}' not found.")
+            st.markdown("---")
+            st.write("### 🔗 Official Sources")
+            query = f"{data['name']} {final_t} Investor Relations Earnings Release"
+            search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+            st.link_button(txt('source_link'), search_url)
+
+    else:
+        st.error(f"Ticker '{final_t}' not found.")
