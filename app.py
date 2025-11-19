@@ -2,6 +2,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 from groq import Groq
+import time
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="Value Investor Pro AI", layout="wide", page_icon="📈")
@@ -66,7 +67,6 @@ def get_stock_data(ticker):
             eps_fwd = info.get('trailingEps', 0) 
         
         # 3. Calculate PE
-        # If EPS is negative or zero, set PE to 0 (logic handles this later)
         fwd_pe = current_price / eps_fwd if eps_fwd and eps_fwd > 0 else 0
         
         return {
@@ -83,7 +83,17 @@ def get_stock_data(ticker):
         return None
 
 def analyze_qualitative(ticker, summary, topic):
-    """Uses Groq Llama 3.3 to rate specific qualitative aspects 0-4"""
+    """
+    Tries High Quality model first. 
+    If Rate Limit (429) is hit, switches to Backup model.
+    """
+    
+    # --- MODEL CONFIGURATION ---
+    PRIMARY_MODEL = "llama-3.3-70b-versatile"  # Best Quality (100k Limit)
+    BACKUP_MODEL  = "llama-3.1-8b-instant"     # High Speed (500k Limit) - Recommended Backup
+    # You can change BACKUP_MODEL to "groq/compound" if you prefer, 
+    # but 8b-instant is usually more reliable for this specific task.
+
     prompt = f"""
     You are a strict Value Investor. Analyze {ticker}.
     Context: {summary}
@@ -97,16 +107,32 @@ def analyze_qualitative(ticker, summary, topic):
     Format: SCORE|EXPLANATION
     """
     
-    try:
-        completion = client.chat.completions.create(
-            model="llama-3.3-70b-versatile", 
+    def call_ai(model_name):
+        return client.chat.completions.create(
+            model=model_name, 
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
             max_tokens=100
         )
-        return completion.choices[0].message.content
+
+    try:
+        # 1. Try Primary Model
+        completion = call_ai(PRIMARY_MODEL)
+        return completion.choices[0].message.content, False # False = No fallback used
+        
     except Exception as e:
-        return f"0|Error analyzing: {e}"
+        error_msg = str(e)
+        # 2. Check for Rate Limit (429)
+        if "429" in error_msg or "rate_limit" in error_msg:
+            try:
+                # 3. Try Backup Model
+                completion = call_ai(BACKUP_MODEL)
+                return completion.choices[0].message.content, True # True = Fallback used
+            except Exception as e2:
+                return f"0|Error (Backup Failed): {e2}", True
+        else:
+            # Genuine other error
+            return f"0|Error: {error_msg}", False
 
 # --- SIDEBAR ---
 with st.sidebar:
@@ -135,13 +161,11 @@ if analyze_btn:
     final_ticker = raw_ticker
     
     if market_choice == "Canada (TSX)":
-        # Append .TO if user didn't add it (and didn't add .V for Venture)
         if ".TO" not in raw_ticker and ".V" not in raw_ticker:
             final_ticker = f"{raw_ticker}.TO"
             
     elif market_choice == "Hong Kong (HKEX)":
-        # HK Tickers need 4 digits and .HK (e.g. 700 -> 0700.HK)
-        clean_nums = ''.join(filter(str.isdigit, raw_ticker)) # Remove dots/letters
+        clean_nums = ''.join(filter(str.isdigit, raw_ticker)) 
         if clean_nums:
             final_ticker = f"{clean_nums.zfill(4)}.HK"
         else:
@@ -169,6 +193,7 @@ if analyze_btn:
             ]
             
             total_qual_score = 0
+            used_backup = False
             progress_bar = st.progress(0)
             
             for i, topic in enumerate(topics):
@@ -176,7 +201,12 @@ if analyze_btn:
                 
                 with st.chat_message("assistant", avatar="🤖"):
                     st.write(f"Analyzing: **{topic}**...")
-                    response = analyze_qualitative(data['name'], data['summary'], topic)
+                    
+                    # Call AI with Fallback Logic
+                    response, backup_triggered = analyze_qualitative(data['name'], data['summary'], topic)
+                    
+                    if backup_triggered:
+                        used_backup = True
                     
                     try:
                         score_str, explanation = response.split('|', 1)
@@ -191,6 +221,11 @@ if analyze_btn:
             
             progress_bar.empty()
             st.divider()
+            
+            # Show indicator if backup model was used
+            if used_backup:
+                st.warning("⚠️ Daily Rate Limit reached on Primary Model. Switched to Backup Model (Llama-3.1-8b).")
+                
             st.markdown(f"### Qualitative Score: :blue[{total_qual_score} / 20]")
 
         # --- RIGHT COLUMN: QUANTITATIVE VALUATION ---
@@ -198,7 +233,6 @@ if analyze_btn:
             st.subheader("2. Quantitative Valuation")
             
             with st.container(border=True):
-                # Display Price with Currency
                 st.metric(f"Price ({data['currency']})", f"{data['price']:.2f}")
                 st.metric("Forward PE Ratio", f"{data['fwd_pe']:.2f}")
                 
