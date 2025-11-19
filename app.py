@@ -60,7 +60,7 @@ client = Groq(api_key=GROQ_API_KEY)
 # --- FUNCTIONS ---
 
 def get_stock_data(ticker):
-    """Fetches financial data from Yahoo Finance"""
+    """Fetches financial data and history from Yahoo Finance"""
     try:
         stock = yf.Ticker(ticker)
         info = stock.info
@@ -68,9 +68,12 @@ def get_stock_data(ticker):
         
         # Get Price
         price = info.get('currentPrice', 0)
-        if price == 0:
-            hist = stock.history(period="1d")
-            if not hist.empty: price = hist['Close'].iloc[-1]
+        
+        # Fetch 6mo history (We need this for the charts)
+        hist = stock.history(period="6mo")
+        
+        if price == 0 and not hist.empty:
+            price = hist['Close'].iloc[-1]
 
         # Get EPS
         eps = info.get('forwardEps', info.get('trailingEps', 0))
@@ -84,7 +87,8 @@ def get_stock_data(ticker):
             "pe": pe,
             "name": info.get('longName', ticker),
             "industry": info.get('industry', 'Unknown'),
-            "summary": info.get('longBusinessSummary', '')
+            "summary": info.get('longBusinessSummary', ''),
+            "history": hist['Close'] # Passing the price history series
         }
     except: return None
 
@@ -93,10 +97,7 @@ def analyze_qualitative(ticker, summary, topic):
     Primary: Llama-3.3-70b (Best Reasoning/Cost Balance)
     Backup:  Llama-3.1-8b (Cheapest: $0.05/1M tokens)
     """
-    # --- MODEL CONFIGURATION ---
-    # Primary: ~$0.59/1M input (Best Intelligence)
     PRIMARY_MODEL = "llama-3.3-70b-versatile" 
-    # Backup: ~$0.05/1M input (Cheapest & Fastest)
     BACKUP_MODEL  = "llama-3.1-8b-instant"    
 
     prompt = f"""
@@ -107,7 +108,6 @@ def analyze_qualitative(ticker, summary, topic):
     """
     
     try:
-        # Try Primary Model
         resp = client.chat.completions.create(
             model=PRIMARY_MODEL,
             messages=[{"role": "user", "content": prompt}], temperature=0.1, max_tokens=100
@@ -115,7 +115,6 @@ def analyze_qualitative(ticker, summary, topic):
         return resp.choices[0].message.content, False
     except:
         try: 
-            # Try Backup Model (Cheaper)
             resp = client.chat.completions.create(
                 model=BACKUP_MODEL, 
                 messages=[{"role": "user", "content": prompt}], temperature=0.1, max_tokens=100
@@ -129,7 +128,7 @@ if 'layout_mode' not in st.session_state: st.session_state.layout_mode = 'deskto
 if 'active_ticker' not in st.session_state: st.session_state.active_ticker = "NVDA"
 if 'active_market' not in st.session_state: st.session_state.active_market = "US"
 
-# 1. DESKTOP SIDEBAR (With RED Button)
+# 1. DESKTOP SIDEBAR
 with st.sidebar:
     st.header("Analysis Tool")
     with st.form(key='desktop_form'):
@@ -137,7 +136,6 @@ with st.sidebar:
         d_market = st.selectbox("Market", ["US", "Canada (TSX)", "HK (HKEX)"], label_visibility="collapsed")
         st.write("Enter Stock Ticker")
         d_ticker = st.text_input("Ticker", value="NVDA", label_visibility="collapsed").upper()
-        # type="primary" makes it RED (thanks to CSS above)
         d_submit = st.form_submit_button("Analyze Stock", type="primary") 
     
     st.markdown("---")
@@ -210,22 +208,14 @@ if run_analysis:
             qual_results.append((t, s, r))
         progress.empty()
 
-        # --- DECIMAL VALUATION LOGIC ---
+        # --- VALUATION LOGIC ---
         pe = data['pe']
-        
-        if pe <= 0: 
-            mult = 1.0
-            color_code = "#8B0000"
-        elif pe <= 20: 
-            mult = 5.0
-            color_code = "#00C805" 
-        elif pe >= 75: 
-            mult = 1.0
-            color_code = "#8B0000" 
+        if pe <= 0: mult, color_code = 1.0, "#8B0000"
+        elif pe <= 20: mult, color_code = 5.0, "#00C805"
+        elif pe >= 75: mult, color_code = 1.0, "#8B0000" 
         else:
             pct = (pe - 20) / 55
             mult = 5.0 - (pct * 4.0)
-            
             if mult >= 4.0: color_code = "#00C805"
             elif mult >= 3.0: color_code = "#90EE90"
             elif mult >= 2.0: color_code = "#FFA500"
@@ -235,9 +225,9 @@ if run_analysis:
         final_score = round(total_qual * mult, 1) 
         
         if backup_used:
-            st.toast("High traffic: Used Backup Model (Cheaper/Faster)", icon="⚠️")
+            st.toast("High traffic: Used Backup Model", icon="⚠️")
 
-        # --- VIEW A: DESKTOP ---
+        # --- VIEW A: DESKTOP (6 Month Chart) ---
         if st.session_state.layout_mode == 'desktop':
             
             col1, col2 = st.columns([1.5, 1])
@@ -256,6 +246,11 @@ if run_analysis:
                 with st.container(border=True):
                     st.metric(f"Price ({data['currency']})", f"{data['price']:.2f}")
                     st.metric("Forward PE", f"{pe:.2f}")
+                    
+                    # --- 6 MONTH CHART FOR DESKTOP ---
+                    st.caption("6-Month Price History")
+                    st.line_chart(data['history'], height=200)
+                    
                     st.markdown("#### Valuation Multiplier")
                     st.markdown(f"<div class='multiplier-box' style='color:{color_code}; border:2px solid {color_code}'>x{mult}</div>", unsafe_allow_html=True)
                     
@@ -272,7 +267,7 @@ if run_analysis:
             </div>
             """, unsafe_allow_html=True)
 
-        # --- VIEW B: MOBILE ---
+        # --- VIEW B: MOBILE (1 Month Chart) ---
         else:
             
             tab1, tab2, tab3 = st.tabs(["🏢 Business", "💰 Value", "🏁 Verdict"])
@@ -289,6 +284,13 @@ if run_analysis:
                 c1, c2 = st.columns(2)
                 c1.metric("Price", f"{data['price']:.0f}")
                 c2.metric("PE", f"{pe:.1f}")
+                
+                # --- 1 MONTH CHART FOR MOBILE ---
+                # Slice the last 22 days (approx 1 trading month)
+                st.caption("1-Month Price Trend")
+                if not data['history'].empty:
+                    st.line_chart(data['history'].tail(22), height=150)
+                
                 st.markdown(f"<div class='multiplier-box' style='color:{color_code}; border:2px solid {color_code}'>x{mult}</div>", unsafe_allow_html=True)
 
             with tab3:
