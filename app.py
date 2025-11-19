@@ -15,7 +15,7 @@ if 'language' not in st.session_state:
 def toggle_language():
     st.session_state.language = 'CN' if st.session_state.language == 'EN' else 'EN'
 
-# --- TRANSLATION DICTIONARY (Fixed Missing Keys) ---
+# --- TRANSLATION DICTIONARY ---
 T = {
     "EN": {
         "sidebar_title": "Analysis Tool",
@@ -43,28 +43,31 @@ T = {
         "pe_ttm": "Trailing PE (TTM)",
         "pe_ratio": "Forward PE (Used for Calc)",
         "multiplier_label": "Valuation Multiplier",
+        
+        # Score Calculation
         "calc_qual": "Qualitative Score",
         "calc_mult": "Multiplier",
         "calc_result": "Final Score",
         "score_calc_title": "VALUE SCORE CALCULATION",
-        "hist_low_pe": "Hist. Low PE (5Y)",
-        "hist_high_pe": "Hist. High PE (5Y)",
-        "pe_pos": "PE Position (5Y)",
-        "pe_pos_low": "Low (Cheap)",
-        "pe_pos_high": "High (Expensive)",
+
+        # Grading
+        "grading_scale": "Grading Scale:",
         "grade_strong_buy": "Strong Buy",
         "grade_buy": "Buy",
         "grade_hold": "Hold",
         "grade_sell": "Sell",
         "grade_avoid": "Avoid",
-        "grading_scale": "Grading Scale:",
+
+        # Technicals
         "tech_verdict": "Technical Verdict", "reason": "Reason",
         "support": "Support", "resistance": "Resistance", "trend": "Trend", "squeeze": "Squeeze",
         "lbl_rsi": "RSI (14)", "lbl_vol": "Vol Ratio",
         "status_high": "High", "status_low": "Low", "status_ok": "OK",
+        "uptrend": "Uptrend", "downtrend": "Downtrend", "weak_uptrend": "Weak Uptrend", "neutral": "Neutral",
+
+        # Financials
         "recent_div": "💰 Recent Dividend History",
         "no_div": "No recent dividend history available.",
-        "fiscal_year": "Fiscal Year End",
         "fin_mkt_cap": "Market Cap", "fin_ent_val": "Enterprise Val",
         "fin_trail_pe": "Trailing P/E", "fin_fwd_pe": "Forward P/E",
         "fin_peg": "PEG Ratio", "fin_ps": "Price/Sales",
@@ -73,12 +76,8 @@ T = {
         "fin_roa": "ROA", "fin_roe": "ROE",
         "fin_eps": "EPS (ttm)", "fin_rev": "Revenue (ttm)",
         "fin_div_yield": "Dividend Yield", "fin_target": "Target Price",
-        
-        # --- MISSING KEYS FIXED HERE ---
-        "uptrend": "Uptrend", "downtrend": "Downtrend", 
-        "weak_uptrend": "Weak Uptrend", "neutral": "Neutral",
-        # -------------------------------
 
+        # Actions
         "act_buy_sup": "BUY (Support Bounce) 🟢", "act_buy_break": "STRONG BUY (Breakout) 🚀",
         "act_prep": "PREPARE TO BUY (VCP) 🔵", "act_profit": "HOLD / TAKE PROFIT 🟠",
         "act_buy_hold": "BUY / HOLD 🟢", "act_sell_sup": "SELL / AVOID 🔴",
@@ -114,28 +113,27 @@ T = {
         "pe_ttm": "歷史市盈率 (Trailing)",
         "pe_ratio": "預測市盈率 (Forward)",
         "multiplier_label": "本益比乘數 (Multiplier)",
+        
         "calc_qual": "投資評估分數",
         "calc_mult": "本益比乘數",
         "calc_result": "最終評分",
         "score_calc_title": "價值評分計算",
-        "hist_low_pe": "歷史最低 PE (5年)",
-        "hist_high_pe": "歷史最高 PE (5年)",
-        "pe_pos": "目前 PE 位置區間",
-        "pe_pos_low": "低位 (便宜)",
-        "pe_pos_high": "高位 (昂貴)",
+
+        "grading_scale": "評級標準:",
         "grade_strong_buy": "非常優秀 (Strong Buy)",
         "grade_buy": "優秀 (Buy)",
         "grade_hold": "良好 (Hold)",
         "grade_sell": "普通 (Sell)",
         "grade_avoid": "差 (Avoid)",
-        "grading_scale": "評級標準:",
+
         "tech_verdict": "技術面結論", "reason": "理由",
         "support": "支持位", "resistance": "阻力位", "trend": "趨勢", "squeeze": "擠壓 (VCP)",
         "lbl_rsi": "RSI (14)", "lbl_vol": "成交量比",
         "status_high": "偏高", "status_low": "偏低", "status_ok": "適中",
+        "uptrend": "上升趨勢", "downtrend": "下降趨勢", "weak_uptrend": "弱勢上升", "neutral": "中性",
+
         "recent_div": "💰 近期派息記錄",
         "no_div": "沒有近期派息記錄。",
-        "fiscal_year": "財政年度結算日",
         "fin_mkt_cap": "市值", "fin_ent_val": "企業價值",
         "fin_trail_pe": "歷史市盈率", "fin_fwd_pe": "預測市盈率",
         "fin_peg": "PEG 比率", "fin_ps": "市銷率 (P/S)",
@@ -144,11 +142,6 @@ T = {
         "fin_roa": "ROA", "fin_roe": "ROE",
         "fin_eps": "每股盈利", "fin_rev": "總營收",
         "fin_div_yield": "股息率", "fin_target": "目標價",
-        
-        # --- MISSING KEYS FIXED HERE ---
-        "uptrend": "上升趨勢", "downtrend": "下降趨勢", 
-        "weak_uptrend": "弱勢上升", "neutral": "中性",
-        # -------------------------------
 
         "act_buy_sup": "買入 (支持位反彈) 🟢", "act_buy_break": "強力買入 (突破) 🚀",
         "act_prep": "準備買入 (VCP擠壓) 🔵", "act_profit": "持有 / 獲利止盈 🟠",
@@ -181,7 +174,7 @@ st.markdown("""
         background-color: #ffffff; margin-top: 20px; border: 4px solid #ccc;
     }
     .grade-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 10px; }
-    .grade-table td { padding: 5px; border: 1px solid #eee; text-align: center; }
+    .grade-table td { padding: 5px; border: 1px solid #eee; text-align: center; color: #333; }
     .grade-green { background-color: #e6ffe6; color: #006600; font-weight: bold; }
     .grade-lightgreen { background-color: #f0fff0; color: #009900; }
     .grade-yellow { background-color: #fffff0; color: #b3b300; }
@@ -210,7 +203,6 @@ except (FileNotFoundError, KeyError):
 client = Groq(api_key=GROQ_API_KEY)
 
 # --- DATA HELPERS ---
-
 def fmt_num(val, is_pct=False, is_currency=False):
     if val is None or val == "N/A": return "-"
     if is_pct: return f"{val * 100:.2f}%"
@@ -222,7 +214,7 @@ def fmt_num(val, is_pct=False, is_currency=False):
 
 def fmt_dividend(val):
     if val is None: return "-"
-    return f"{val:.2f}%"
+    return f"{val * 100:.2f}%"
 
 def fmt_date(ts):
     if ts is None: return "-"
@@ -252,7 +244,7 @@ def get_stock_data(ticker):
         min_pe, max_pe = 0, 0
         if eps and eps > 0 and not hist.empty:
             pe_series = hist['Close'] / eps
-            # Filter outliers (PE > 200 or < 0)
+            # Filter outliers
             pe_series = pe_series[(pe_series > 0) & (pe_series < 200)]
             if not pe_series.empty:
                 min_pe = pe_series.min()
@@ -270,7 +262,7 @@ def get_stock_data(ticker):
 def calculate_technicals(df):
     if df.empty or len(df) < 200: return None
     
-    # Use last 1 year (approx 252 trading days) for SMA 200
+    # Use last 260 days for SMA 200
     df_recent = df.tail(300).copy()
     
     df_recent['SMA_50'] = df_recent['Close'].rolling(window=50).mean()
@@ -308,15 +300,10 @@ def calculate_technicals(df):
         "trend": trend, "rsi": df_recent['RSI'].iloc[-1], 
         "support": support, "resistance": resistance,
         "vol_ratio": vol_ratio, "is_squeezing": is_squeezing,
-        "last_price": curr_price
+        "last_price": curr_price, "data": df_recent # Return DF for plotting
     }
 
 def analyze_qualitative(ticker, summary, topic):
-    """
-    Primary: Llama-3.3-70b-versatile
-    Backup: Llama-3.1-8b-instant
-    Token Saving: Hardcoded instructions for language.
-    """
     PRIMARY_MODEL = "llama-3.3-70b-versatile" 
     BACKUP_MODEL  = "llama-3.1-8b-instant"    
     
@@ -423,7 +410,6 @@ if run_analysis:
             backup_used = False
             
             prog_bar = st.progress(0)
-            
             col_q, col_v = st.columns([1.6, 1])
             
             with col_q:
@@ -452,7 +438,6 @@ if run_analysis:
             # Valuation Logic
             pe = data['pe']
             min_pe, max_pe = data['min_pe'], data['max_pe']
-            
             mult = 1.0
             pos_pct = 1.0
             color_code = "#FF4500"
@@ -481,6 +466,8 @@ if run_analysis:
                 st.subheader(txt('quant_val_header'))
                 with st.container(border=True):
                     st.metric(txt('price'), f"{data['price']:.2f}")
+                    # Added Trailing PE back
+                    st.metric(txt('pe_ttm'), fmt_num(data['raw_info'].get('trailingPE')))
                     st.metric(txt('pe_ratio'), f"{pe:.2f}" if pe and pe > 0 else "N/A")
                     
                     st.caption(f"PE Range (5Y): {min_pe:.1f} - {max_pe:.1f}")
@@ -489,6 +476,7 @@ if run_analysis:
                     st.subheader(txt('multiplier_label'))
                     st.markdown(f"""<div class="multiplier-box" style="border: 2px solid {color_code}; color: {color_code};">x{mult:.0f}</div>""", unsafe_allow_html=True)
 
+            # RESTORED: Score Calculation Visuals
             st.markdown(f"""
             <div class="final-score-box" style="border-color: {v_border}; padding: 20px;">
             <h3 style="color:#555; margin:0;">{txt('score_calc_title')}</h3>
@@ -504,12 +492,23 @@ if run_analysis:
             </div></div>
             """, unsafe_allow_html=True)
 
+            # RESTORED: Grading Scale
+            with st.expander(txt('grading_scale'), expanded=False):
+                st.markdown(f"""
+                <table class="grade-table">
+                <tr class="grade-green"><td>75 - 100</td><td>{txt('grade_strong_buy')}</td></tr>
+                <tr class="grade-lightgreen"><td>60 - 74.9</td><td>{txt('grade_buy')}</td></tr>
+                <tr class="grade-yellow"><td>45 - 59.9</td><td>{txt('grade_hold')}</td></tr>
+                <tr class="grade-orange"><td>30 - 44.9</td><td>{txt('grade_sell')}</td></tr>
+                <tr class="grade-red"><td>< 30</td><td>{txt('grade_avoid')}</td></tr>
+                </table>
+                """, unsafe_allow_html=True)
+
         # --- TAB 2: TECHNICAL ---
         with tab_tech:
             tech = calculate_technicals(data['history'])
             if tech:
                 action_key, reason_key = "act_avoid", "reas_down"
-                
                 if "uptrend" in tech['trend']:
                     if tech['last_price'] < tech['support'] * 1.05: action_key, reason_key = "act_buy_sup", "reas_sup"
                     elif tech['vol_ratio'] > 1.5: action_key, reason_key = "act_buy_break", "reas_vol"
@@ -529,10 +528,16 @@ if run_analysis:
                 tc3.metric(txt('lbl_vol'), f"{tech['vol_ratio']:.2f}x")
                 tc4.metric(txt('squeeze'), "YES" if tech['is_squeezing'] else "No")
                 
-                st.line_chart(data['history'].tail(252)['Close'])
+                # RESTORED: Support/Resistance
+                c_sup, c_res = st.columns(2)
+                c_sup.success(f"🛡️ {txt('support')}: {tech['support']:.2f}")
+                c_res.error(f"🚧 {txt('resistance')}: {tech['resistance']:.2f}")
+
+                # RESTORED: Chart with SMA
+                st.line_chart(tech['data'][['Close', 'SMA_50', 'SMA_200']], color=["#0000FF", "#FFA500", "#FF0000"])
             else: st.warning("Not enough historical data.")
 
-        # --- TAB 3: FINANCIALS ---
+        # --- TAB 3: FINANCIALS (Restored Full Grid) ---
         with tab_fin:
             i = data['raw_info']
             def row(cols):
@@ -541,8 +546,13 @@ if run_analysis:
 
             row([("fin_mkt_cap", fmt_num(i.get('marketCap'), is_currency=True)), ("fin_ent_val", fmt_num(i.get('enterpriseValue'), is_currency=True)), ("fin_trail_pe", fmt_num(i.get('trailingPE'))), ("fin_fwd_pe", fmt_num(i.get('forwardPE')))])
             st.divider()
+            row([("fin_peg", fmt_num(i.get('pegRatio'))), ("fin_ps", fmt_num(i.get('priceToSalesTrailing12Months'))), ("fin_pb", fmt_num(i.get('priceToBook'))), ("fin_beta", fmt_num(i.get('beta')))])
+            st.divider()
             row([("fin_prof_marg", fmt_num(i.get('profitMargins'), is_pct=True)), ("fin_gross_marg", fmt_num(i.get('grossMargins'), is_pct=True)), ("fin_roa", fmt_num(i.get('returnOnAssets'), is_pct=True)), ("fin_roe", fmt_num(i.get('returnOnEquity'), is_pct=True))])
             st.divider()
+            row([("fin_eps", fmt_num(i.get('trailingEps'))), ("fin_rev", fmt_num(i.get('totalRevenue'), is_currency=True)), ("fin_div_yield", fmt_dividend(i.get('dividendYield'))), ("fin_target", fmt_num(i.get('targetMeanPrice')))])
+            st.divider()
+            
             st.subheader(txt('recent_div'))
             divs = data.get('dividends')
             if divs is not None and not divs.empty:
