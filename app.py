@@ -103,15 +103,12 @@ def analyze_qualitative(ticker, summary, topic):
     except Exception as e:
         return f"0|Error analyzing: {e}"
 
-# --- SIDEBAR (MODIFIED FOR ENTER KEY SUPPORT) ---
+# --- SIDEBAR (With Form for Enter Key Support) ---
 with st.sidebar:
     st.title("⚙️ Analysis Tool")
     
-    # We use a form here. When a user presses Enter in the text input, 
-    # it triggers the submit button automatically.
     with st.form(key='search_form'):
         ticker_input = st.text_input("Enter US Stock Ticker", value="NVDA", max_chars=5).upper()
-        # st.button becomes st.form_submit_button inside a form
         analyze_btn = st.form_submit_button("Analyze Stock", type="primary")
     
     st.markdown("---")
@@ -222,11 +219,12 @@ if analyze_btn:
             verdict = "AVOID / SELL 🔻"
             final_color = "#FF0000"
 
+        # --- FIX: Added 'color: black' to h2 and h3 to ensure visibility on white background ---
         st.markdown(f"""
-        <div style="text-align: center; padding: 20px; border: 2px solid {final_color}; border-radius: 15px; background-color: #fff;">
-            <h2>FINAL EVALUATION</h2>
+        <div style="text-align: center; padding: 20px; border: 4px solid {final_color}; border-radius: 15px; background-color: #ffffff;">
+            <h2 style="color: #333333; margin:0;">FINAL EVALUATION</h2>
             <h1 style="color: {final_color}; font-size: 80px; margin: 0;">{final_score}</h1>
-            <h3>{verdict}</h3>
+            <h3 style="color: #333333; margin:0;">{verdict}</h3>
         </div>
         """, unsafe_allow_html=True)
         
