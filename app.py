@@ -1,5 +1,7 @@
 import streamlit as st
 import yfinance as yf
+import pandas as pd
+import numpy as np
 from groq import Groq
 
 # --- PAGE CONFIGURATION ---
@@ -8,7 +10,7 @@ st.set_page_config(page_title="Value Investor Pro", layout="wide", page_icon="�
 # --- CSS STYLING ---
 st.markdown("""
 <style>
-    /* 1. Multiplier Box Style */
+    /* Multiplier Box */
     .multiplier-box {
         font-size: 30px;
         font-weight: bold;
@@ -18,8 +20,7 @@ st.markdown("""
         background-color: #f9f9f9;
         margin-top: 10px;
     }
-    
-    /* 2. Final Score Box Style */
+    /* Final Score Box */
     .final-score-box {
         text-align: center; 
         padding: 20px; 
@@ -28,8 +29,15 @@ st.markdown("""
         margin-top: 20px;
         border: 4px solid #ccc;
     }
-
-    /* 3. Custom RED Button Styling for Desktop Sidebar */
+    /* Technical Verdict Box */
+    .tech-box {
+        padding: 15px;
+        border-radius: 10px;
+        background-color: #f0f2f6;
+        margin-bottom: 10px;
+        border-left: 5px solid #333;
+    }
+    /* Red Button Styling */
     div[data-testid="stForm"] button[kind="primary"] {
         background-color: #FF4B4B;
         color: white;
@@ -57,28 +65,24 @@ except (FileNotFoundError, KeyError):
 
 client = Groq(api_key=GROQ_API_KEY)
 
-# --- FUNCTIONS ---
+# --- DATA FUNCTIONS ---
 
 def get_stock_data(ticker):
-    """Fetches financial data and history from Yahoo Finance"""
+    """Fetches financial data + 1 Year History"""
     try:
         stock = yf.Ticker(ticker)
         info = stock.info
         if not info: return None
         
-        # Get Price
         price = info.get('currentPrice', 0)
         
-        # Fetch 6mo history
-        hist = stock.history(period="6mo")
+        # Fetch 1 Year history for Technical Analysis (SMA 200)
+        hist = stock.history(period="1y")
         
         if price == 0 and not hist.empty:
             price = hist['Close'].iloc[-1]
 
-        # Get EPS
         eps = info.get('forwardEps', info.get('trailingEps', 0))
-        
-        # Calc PE
         pe = price / eps if eps and eps > 0 else 0
         
         return {
@@ -88,41 +92,83 @@ def get_stock_data(ticker):
             "name": info.get('longName', ticker),
             "industry": info.get('industry', 'Unknown'),
             "summary": info.get('longBusinessSummary', ''),
-            "history": hist['Close'] # Passing the price history series
+            "history": hist
         }
     except: return None
 
+def calculate_technicals(df):
+    """Calculates RSI, SMA, Support/Resistance, VCP"""
+    if df.empty or len(df) < 200:
+        return None
+    
+    # 1. Moving Averages
+    df['SMA_50'] = df['Close'].rolling(window=50).mean()
+    df['SMA_200'] = df['Close'].rolling(window=200).mean()
+    
+    # 2. RSI (14)
+    delta = df['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    df['RSI'] = 100 - (100 / (1 + rs))
+    
+    # 3. Volume Analysis
+    avg_vol = df['Volume'].rolling(window=20).mean().iloc[-1]
+    curr_vol = df['Volume'].iloc[-1]
+    vol_ratio = curr_vol / avg_vol if avg_vol > 0 else 1.0
+
+    # 4. Support & Resistance (Last 3 months / 60 days)
+    recent_data = df.tail(60)
+    support = recent_data['Low'].min()
+    resistance = recent_data['High'].max()
+    
+    # 5. VCP (Volatility Contraction) - Simplified
+    # Check if recent volatility (10d) is lower than historical (60d)
+    volatility_short = df['Close'].rolling(window=10).std().iloc[-1]
+    volatility_long = df['Close'].rolling(window=60).std().iloc[-1]
+    is_squeezing = volatility_short < (volatility_long * 0.5) # Squeezing if vol is half of normal
+
+    # 6. Trend State
+    current_price = df['Close'].iloc[-1]
+    sma_50 = df['SMA_50'].iloc[-1]
+    sma_200 = df['SMA_200'].iloc[-1]
+    rsi = df['RSI'].iloc[-1]
+
+    trend = "Neutral"
+    if current_price > sma_200:
+        trend = "Uptrend 🟢" if current_price > sma_50 else "Weak Uptrend 🟡"
+    else:
+        trend = "Downtrend 🔴"
+
+    return {
+        "trend": trend,
+        "rsi": rsi,
+        "support": support,
+        "resistance": resistance,
+        "vol_ratio": vol_ratio,
+        "is_squeezing": is_squeezing,
+        "sma_50": sma_50,
+        "sma_200": sma_200,
+        "last_price": current_price
+    }
+
 def analyze_qualitative(ticker, summary, topic):
-    """
-    Primary: Llama-3.3-70b (Best Reasoning/Cost Balance)
-    Backup:  Llama-3.1-8b (Cheapest: $0.05/1M tokens)
-    """
+    """Primary: Llama-3.3-70b | Backup: Llama-3.1-8b"""
     PRIMARY_MODEL = "llama-3.3-70b-versatile" 
     BACKUP_MODEL  = "llama-3.1-8b-instant"    
 
-    prompt = f"""
-    Analyze {ticker} regarding '{topic}'. Context: {summary}. 
-    Give a specific score from 0.0 to 4.0 (use 1 decimal place, e.g., 3.5 or 2.8).
-    Provide a 1 sentence reason.
-    Format: SCORE|REASON
-    """
+    prompt = f"Analyze {ticker} regarding '{topic}'. Context: {summary}. Give a specific score from 0.0 to 4.0 (use 1 decimal place). Provide a 1 sentence reason. Format: SCORE|REASON"
     
     try:
-        resp = client.chat.completions.create(
-            model=PRIMARY_MODEL,
-            messages=[{"role": "user", "content": prompt}], temperature=0.1, max_tokens=100
-        )
+        resp = client.chat.completions.create(model=PRIMARY_MODEL, messages=[{"role": "user", "content": prompt}], temperature=0.1, max_tokens=100)
         return resp.choices[0].message.content, False
     except:
         try: 
-            resp = client.chat.completions.create(
-                model=BACKUP_MODEL, 
-                messages=[{"role": "user", "content": prompt}], temperature=0.1, max_tokens=100
-            )
+            resp = client.chat.completions.create(model=BACKUP_MODEL, messages=[{"role": "user", "content": prompt}], temperature=0.1, max_tokens=100)
             return resp.choices[0].message.content, True
         except: return "0.0|Error", True
 
-# --- HYBRID INPUT LOGIC ---
+# --- INPUT LOGIC ---
 
 if 'layout_mode' not in st.session_state: st.session_state.layout_mode = 'desktop' 
 if 'active_ticker' not in st.session_state: st.session_state.active_ticker = "NVDA"
@@ -132,14 +178,11 @@ if 'active_market' not in st.session_state: st.session_state.active_market = "US
 with st.sidebar:
     st.header("Analysis Tool")
     with st.form(key='desktop_form'):
-        st.write("Select Market")
         d_market = st.selectbox("Market", ["US", "Canada (TSX)", "HK (HKEX)"], label_visibility="collapsed")
-        st.write("Enter Stock Ticker")
         d_ticker = st.text_input("Ticker", value="NVDA", label_visibility="collapsed").upper()
         d_submit = st.form_submit_button("Analyze Stock", type="primary") 
-    
     st.markdown("---")
-    st.caption("Primary: Llama 3.3 70B\nBackup: Llama 3.1 8B")
+    st.caption("Hybrid Model: Fundamental + Technical Analysis")
 
 # 2. MOBILE EXPANDER
 with st.expander("📱 Tap here for Mobile Search", expanded=False):
@@ -151,9 +194,7 @@ with st.expander("📱 Tap here for Mobile Search", expanded=False):
             m_ticker = st.text_input("Ticker", value="NVDA", key='m_t').upper()
         m_submit = st.form_submit_button("Analyze (Mobile)", type="primary")
 
-# --- PROCESSING LOGIC ---
 run_analysis = False
-
 if d_submit:
     st.session_state.layout_mode = 'desktop'
     st.session_state.active_ticker = d_ticker
@@ -169,16 +210,14 @@ elif m_submit:
 
 if run_analysis:
     
-    # Ticker Clean Up
+    # Ticker Logic
     raw_t = st.session_state.active_ticker
     mkt = st.session_state.active_market
     final_t = raw_t
-    
     if mkt == "Canada (TSX)" and ".TO" not in raw_t: final_t += ".TO"
     elif mkt == "HK (HKEX)": 
         nums = ''.join(filter(str.isdigit, raw_t))
-        if nums: final_t = f"{nums.zfill(4)}.HK"
-        else: final_t += ".HK"
+        final_t = f"{nums.zfill(4)}.HK" if nums else f"{raw_t}.HK"
 
     with st.spinner(f"Analyzing {final_t}..."):
         data = get_stock_data(final_t)
@@ -187,120 +226,140 @@ if run_analysis:
         st.header(f"{data['name']} ({final_t})")
         st.caption(f"Industry: {data['industry']} | Currency: {data['currency']}")
 
-        # Run Analysis
-        topics = ["Unique Product/Moat", "Revenue Growth", "Competitive Advantage", "Profit Stability", "Management"]
-        qual_results = []
-        total_qual = 0.0 
-        backup_used = False
-        
-        progress = st.progress(0)
-        for i, t in enumerate(topics):
-            progress.progress((i)/5)
-            res, is_backup = analyze_qualitative(data['name'], data['summary'], t)
-            if is_backup: backup_used = True
-            
-            try: 
-                s, r = res.split('|', 1)
-                s = float(s.strip()) 
-            except: s, r = 0.0, "Error parsing AI"
-            
-            total_qual += s
-            qual_results.append((t, s, r))
-        progress.empty()
+        # --- TOP LEVEL TABS (Fundamental vs Technical) ---
+        tab_fund, tab_tech = st.tabs(["💎 Value Analysis", "📈 Technical Analysis"])
 
-        # --- VALUATION LOGIC ---
-        pe = data['pe']
-        if pe <= 0: mult, color_code = 1.0, "#8B0000"
-        elif pe <= 20: mult, color_code = 5.0, "#00C805"
-        elif pe >= 75: mult, color_code = 1.0, "#8B0000" 
-        else:
-            pct = (pe - 20) / 55
-            mult = 5.0 - (pct * 4.0)
-            if mult >= 4.0: color_code = "#00C805"
-            elif mult >= 3.0: color_code = "#90EE90"
-            elif mult >= 2.0: color_code = "#FFA500"
-            else: color_code = "#FF4500"
+        # ==========================================
+        # TAB 1: FUNDAMENTAL VALUE (Original Logic)
+        # ==========================================
+        with tab_fund:
+            topics = ["Unique Product/Moat", "Revenue Growth", "Competitive Advantage", "Profit Stability", "Management"]
+            qual_results = []
+            total_qual = 0.0 
+            backup_used = False
+            
+            progress = st.progress(0)
+            for i, t in enumerate(topics):
+                progress.progress((i)/5)
+                res, is_backup = analyze_qualitative(data['name'], data['summary'], t)
+                if is_backup: backup_used = True
+                try: 
+                    s, r = res.split('|', 1)
+                    s = float(s.strip()) 
+                except: s, r = 0.0, "Error parsing AI"
+                total_qual += s
+                qual_results.append((t, s, r))
+            progress.empty()
 
-        mult = round(mult, 2) 
-        final_score = round(total_qual * mult, 1) 
-        
-        if backup_used:
-            st.toast("High traffic: Used Backup Model", icon="⚠️")
+            # Valuation Logic
+            pe = data['pe']
+            if pe <= 0: mult, color_code = 1.0, "#8B0000"
+            elif pe <= 20: mult, color_code = 5.0, "#00C805"
+            elif pe >= 75: mult, color_code = 1.0, "#8B0000" 
+            else:
+                pct = (pe - 20) / 55
+                mult = 5.0 - (pct * 4.0)
+                if mult >= 4.0: color_code = "#00C805"
+                elif mult >= 3.0: color_code = "#90EE90"
+                elif mult >= 2.0: color_code = "#FFA500"
+                else: color_code = "#FF4500"
 
-        # --- VIEW A: DESKTOP (6 Month Chart) ---
-        if st.session_state.layout_mode == 'desktop':
-            
-            col1, col2 = st.columns([1.5, 1])
-            
-            with col1:
-                st.subheader("1. Qualitative Analysis")
-                for item in qual_results:
-                    st.markdown(f"**{item[0]}**")
-                    st.progress(min(item[1]/4.0, 1.0)) 
-                    st.caption(f"**{item[1]}/4** — {item[2]}")
-                    st.divider()
-                st.info(f"Total Qualitative Score: {total_qual:.1f} / 20")
+            mult = round(mult, 2) 
+            final_score = round(total_qual * mult, 1) 
 
-            with col2:
-                st.subheader("2. Valuation")
-                with st.container(border=True):
-                    st.metric(f"Price ({data['currency']})", f"{data['price']:.2f}")
-                    st.metric("Forward PE", f"{pe:.2f}")
-                    
-                    st.caption("6-Month Price History")
-                    st.line_chart(data['history'], height=200)
-                    
-                    st.markdown("#### Valuation Multiplier")
-                    st.markdown(f"<div class='multiplier-box' style='color:{color_code}; border:2px solid {color_code}'>x{mult}</div>", unsafe_allow_html=True)
-                    
-                    if mult >= 4.5: st.caption("✅ Deep Value")
-                    elif mult <= 1.5: st.caption("⚠️ Expensive")
-                    else: st.caption(f"⚖️ Fair Value Adjustment")
+            # Layout Render (Desktop vs Mobile)
+            if st.session_state.layout_mode == 'desktop':
+                c1, c2 = st.columns([1.5, 1])
+                with c1:
+                    st.subheader("Qualitative Analysis")
+                    for item in qual_results:
+                        st.markdown(f"**{item[0]}**")
+                        st.progress(min(item[1]/4.0, 1.0)) 
+                        st.caption(f"**{item[1]}/4** — {item[2]}")
+                    st.info(f"Total Score: {total_qual:.1f} / 20")
+                with c2:
+                    st.subheader("Valuation")
+                    with st.container(border=True):
+                        st.metric("Price", f"{data['price']:.2f}")
+                        st.metric("PE Ratio", f"{pe:.2f}")
+                        st.markdown(f"<div class='multiplier-box' style='color:{color_code}; border:2px solid {color_code}'>x{mult}</div>", unsafe_allow_html=True)
+                
+                verdict_color = "#00C805" if final_score >= 75 else "#FFA500" if final_score >= 45 else "#FF0000"
+                st.markdown(f"""<div class="final-score-box" style="border-color: {verdict_color};"><h2 style="color:#333;margin:0;">VALUE SCORE</h2><h1 style="color:{verdict_color};font-size:80px;margin:0;">{final_score}</h1></div>""", unsafe_allow_html=True)
             
-            st.divider()
-            verdict_color = "#00C805" if final_score >= 75 else "#FFA500" if final_score >= 45 else "#FF0000"
-            st.markdown(f"""
-            <div class="final-score-box" style="border-color: {verdict_color};">
-                <h2 style="color:#333; margin:0;">FINAL SCORE</h2>
-                <h1 style="color: {verdict_color}; font-size: 80px; margin:0;">{final_score}</h1>
-            </div>
-            """, unsafe_allow_html=True)
-
-        # --- VIEW B: MOBILE (Now 6 Month Chart) ---
-        else:
-            
-            tab1, tab2, tab3 = st.tabs(["🏢 Business", "💰 Value", "🏁 Verdict"])
-            
-            with tab1:
-                st.info(f"Quality Score: **{total_qual:.1f}/20**")
+            else: # Mobile
                 for item in qual_results:
                     with st.chat_message("assistant", avatar="🤖"):
                         st.write(f"**{item[0]}**")
                         st.write(f"⭐ {item[1]}")
                         st.caption(item[2])
-
-            with tab2:
-                c1, c2 = st.columns(2)
-                c1.metric("Price", f"{data['price']:.0f}")
-                c2.metric("PE", f"{pe:.1f}")
-                
-                # --- 6 MONTH CHART FOR MOBILE ---
-                st.caption("6-Month Price Trend")
-                if not data['history'].empty:
-                    # Removed .tail(22) to show full history
-                    st.line_chart(data['history'], height=150)
-                
                 st.markdown(f"<div class='multiplier-box' style='color:{color_code}; border:2px solid {color_code}'>x{mult}</div>", unsafe_allow_html=True)
+                st.metric("Final Value Score", final_score)
 
-            with tab3:
-                verdict_color = "#00C805" if final_score >= 75 else "#FFA500" if final_score >= 45 else "#FF0000"
-                verdict_txt = "BUY" if final_score >= 75 else "HOLD" if final_score >= 45 else "SELL"
-                st.markdown(f"""
-                <div class="final-score-box" style="border-color: {verdict_color};">
-                    <h1 style="color: {verdict_color}; font-size: 60px; margin:0;">{final_score}</h1>
-                    <h3 style="color:#333; margin:0;">{verdict_txt}</h3>
-                </div>
-                """, unsafe_allow_html=True)
+        # ==========================================
+        # TAB 2: TECHNICAL ANALYSIS (New Logic)
+        # ==========================================
+        with tab_tech:
+            tech = calculate_technicals(data['history'])
+            
+            if tech:
+                # --- 1. VERDICT LOGIC ---
+                action = "WAIT / WATCH 🟡"
+                reason = "Market is indecisive."
+                
+                # Basic Rules
+                if "Uptrend" in tech['trend']:
+                    if tech['last_price'] < tech['support'] * 1.05:
+                        action = "BUY (Support Bounce) 🟢"
+                        reason = "Uptrend + Near Support Level."
+                    elif tech['vol_ratio'] > 1.5:
+                        action = "STRONG BUY (Breakout) 🚀"
+                        reason = "Uptrend + High Volume Surge."
+                    elif tech['is_squeezing']:
+                        action = "PREPARE TO BUY (VCP) 🔵"
+                        reason = "Volatility Squeeze (VCP) detected. Watch for breakout."
+                    elif tech['rsi'] > 70:
+                        action = "HOLD / TAKE PROFIT 🟠"
+                        reason = "Uptrend but Overbought (RSI > 70)."
+                    else:
+                        action = "BUY / HOLD 🟢"
+                        reason = "Healthy Uptrend."
+                else: # Downtrend
+                    if tech['last_price'] < tech['support']:
+                        action = "SELL / AVOID 🔴"
+                        reason = "Price breaking below Support."
+                    elif tech['rsi'] < 30:
+                        action = "WATCH (Oversold) 🟡"
+                        reason = "Downtrend but potential oversold bounce."
+                    else:
+                        action = "AVOID / SELL 🔴"
+                        reason = "Stock is in a Downtrend."
+
+                # --- 2. UI LAYOUT ---
+                st.subheader(f"Technical Verdict: {action}")
+                st.info(f"📝 Reason: {reason}")
+
+                # Metrics Row
+                tc1, tc2, tc3, tc4 = st.columns(4)
+                tc1.metric("Trend (SMA200)", tech['trend'])
+                tc2.metric("RSI (14)", f"{tech['rsi']:.1f}", delta="Overbought" if tech['rsi']>70 else "Oversold" if tech['rsi']<30 else "Neutral", delta_color="inverse")
+                tc3.metric("Volume Ratio", f"{tech['vol_ratio']:.2f}x", delta="High Vol" if tech['vol_ratio']>1.2 else "Normal")
+                tc4.metric("VCP / Squeeze", "YES" if tech['is_squeezing'] else "No")
+
+                # Levels
+                c_sup, c_res = st.columns(2)
+                c_sup.success(f"🛡️ Support (3M Low): {tech['support']:.2f}")
+                c_res.error(f"🚧 Resistance (3M High): {tech['resistance']:.2f}")
+
+                # Chart
+                st.subheader("Price vs Moving Averages (1 Year)")
+                chart_data = data['history'][['Close', 'SMA_50', 'SMA_200']]
+                st.line_chart(chart_data, color=["#0000FF", "#FFA500", "#FF0000"]) # Blue=Close, Orange=50, Red=200
+                
+                st.caption("Blue: Price | Orange: 50 SMA | Red: 200 SMA")
+
+            else:
+                st.warning("Not enough historical data to perform Technical Analysis (Need > 200 days).")
 
     else:
         st.error(f"Ticker '{final_t}' not found.")
