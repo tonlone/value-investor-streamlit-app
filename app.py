@@ -93,10 +93,12 @@ def analyze_qualitative(ticker, summary, topic):
     Primary: Llama-3.3-70b (Best Reasoning/Cost Balance)
     Backup:  Llama-3.1-8b (Cheapest: $0.05/1M tokens)
     """
+    # --- MODEL CONFIGURATION ---
+    # Primary: ~$0.59/1M input (Best Intelligence)
     PRIMARY_MODEL = "llama-3.3-70b-versatile" 
+    # Backup: ~$0.05/1M input (Cheapest & Fastest)
     BACKUP_MODEL  = "llama-3.1-8b-instant"    
 
-    # UPDATED PROMPT: Asks for decimals (e.g., 3.5)
     prompt = f"""
     Analyze {ticker} regarding '{topic}'. Context: {summary}. 
     Give a specific score from 0.0 to 4.0 (use 1 decimal place, e.g., 3.5 or 2.8).
@@ -105,6 +107,7 @@ def analyze_qualitative(ticker, summary, topic):
     """
     
     try:
+        # Try Primary Model
         resp = client.chat.completions.create(
             model=PRIMARY_MODEL,
             messages=[{"role": "user", "content": prompt}], temperature=0.1, max_tokens=100
@@ -112,6 +115,7 @@ def analyze_qualitative(ticker, summary, topic):
         return resp.choices[0].message.content, False
     except:
         try: 
+            # Try Backup Model (Cheaper)
             resp = client.chat.completions.create(
                 model=BACKUP_MODEL, 
                 messages=[{"role": "user", "content": prompt}], temperature=0.1, max_tokens=100
@@ -133,10 +137,11 @@ with st.sidebar:
         d_market = st.selectbox("Market", ["US", "Canada (TSX)", "HK (HKEX)"], label_visibility="collapsed")
         st.write("Enter Stock Ticker")
         d_ticker = st.text_input("Ticker", value="NVDA", label_visibility="collapsed").upper()
+        # type="primary" makes it RED (thanks to CSS above)
         d_submit = st.form_submit_button("Analyze Stock", type="primary") 
     
     st.markdown("---")
-    st.caption("Precision Mode: Enabled (Decimals)")
+    st.caption("Primary: Llama 3.3 70B\nBackup: Llama 3.1 8B")
 
 # 2. MOBILE EXPANDER
 with st.expander("📱 Tap here for Mobile Search", expanded=False):
@@ -187,7 +192,7 @@ if run_analysis:
         # Run Analysis
         topics = ["Unique Product/Moat", "Revenue Growth", "Competitive Advantage", "Profit Stability", "Management"]
         qual_results = []
-        total_qual = 0.0 # Float now
+        total_qual = 0.0 
         backup_used = False
         
         progress = st.progress(0)
@@ -198,14 +203,14 @@ if run_analysis:
             
             try: 
                 s, r = res.split('|', 1)
-                s = float(s.strip()) # Parse as decimal
+                s = float(s.strip()) 
             except: s, r = 0.0, "Error parsing AI"
             
             total_qual += s
             qual_results.append((t, s, r))
         progress.empty()
 
-        # --- NEW DECIMAL VALUATION LOGIC (Linear Interpolation) ---
+        # --- DECIMAL VALUATION LOGIC ---
         pe = data['pe']
         
         if pe <= 0: 
@@ -213,28 +218,24 @@ if run_analysis:
             color_code = "#8B0000"
         elif pe <= 20: 
             mult = 5.0
-            color_code = "#00C805" # Green
+            color_code = "#00C805" 
         elif pe >= 75: 
             mult = 1.0
-            color_code = "#8B0000" # Dark Red
+            color_code = "#8B0000" 
         else:
-            # Linear Interpolation between PE 20 and PE 75
-            # Range = 55 points (75 - 20)
-            # Slope: Multiplier drops from 5 to 1 (Difference of 4)
             pct = (pe - 20) / 55
             mult = 5.0 - (pct * 4.0)
             
-            # Determine color based on the calculated multiplier
-            if mult >= 4.0: color_code = "#00C805" # Green
-            elif mult >= 3.0: color_code = "#90EE90" # Light Green
-            elif mult >= 2.0: color_code = "#FFA500" # Orange
-            else: color_code = "#FF4500" # Red
+            if mult >= 4.0: color_code = "#00C805"
+            elif mult >= 3.0: color_code = "#90EE90"
+            elif mult >= 2.0: color_code = "#FFA500"
+            else: color_code = "#FF4500"
 
-        mult = round(mult, 2) # Keep 2 decimals
-        final_score = round(total_qual * mult, 1) # 1 decimal for final score
+        mult = round(mult, 2) 
+        final_score = round(total_qual * mult, 1) 
         
         if backup_used:
-            st.toast("High traffic: Used Backup Model", icon="⚠️")
+            st.toast("High traffic: Used Backup Model (Cheaper/Faster)", icon="⚠️")
 
         # --- VIEW A: DESKTOP ---
         if st.session_state.layout_mode == 'desktop':
@@ -245,7 +246,6 @@ if run_analysis:
                 st.subheader("1. Qualitative Analysis")
                 for item in qual_results:
                     st.markdown(f"**{item[0]}**")
-                    # Progress needs 0.0 to 1.0
                     st.progress(min(item[1]/4.0, 1.0)) 
                     st.caption(f"**{item[1]}/4** — {item[2]}")
                     st.divider()
