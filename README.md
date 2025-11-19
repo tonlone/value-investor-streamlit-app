@@ -1,1 +1,1 @@
-# value-investor-streamlit-app
+This script implements a Streamlit application for stock analysis using qualitative and quantitative methods. It fetches stock data, analyzes it using AI, and displays the results with a valuation multiplier.
