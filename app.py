@@ -227,4 +227,79 @@ if run_analysis:
             # Determine color based on the calculated multiplier
             if mult >= 4.0: color_code = "#00C805" # Green
             elif mult >= 3.0: color_code = "#90EE90" # Light Green
-            elif mult >=
+            elif mult >= 2.0: color_code = "#FFA500" # Orange
+            else: color_code = "#FF4500" # Red
+
+        mult = round(mult, 2) # Keep 2 decimals
+        final_score = round(total_qual * mult, 1) # 1 decimal for final score
+        
+        if backup_used:
+            st.toast("High traffic: Used Backup Model", icon="⚠️")
+
+        # --- VIEW A: DESKTOP ---
+        if st.session_state.layout_mode == 'desktop':
+            
+            col1, col2 = st.columns([1.5, 1])
+            
+            with col1:
+                st.subheader("1. Qualitative Analysis")
+                for item in qual_results:
+                    st.markdown(f"**{item[0]}**")
+                    # Progress needs 0.0 to 1.0
+                    st.progress(min(item[1]/4.0, 1.0)) 
+                    st.caption(f"**{item[1]}/4** — {item[2]}")
+                    st.divider()
+                st.info(f"Total Qualitative Score: {total_qual:.1f} / 20")
+
+            with col2:
+                st.subheader("2. Valuation")
+                with st.container(border=True):
+                    st.metric(f"Price ({data['currency']})", f"{data['price']:.2f}")
+                    st.metric("Forward PE", f"{pe:.2f}")
+                    st.markdown("#### Valuation Multiplier")
+                    st.markdown(f"<div class='multiplier-box' style='color:{color_code}; border:2px solid {color_code}'>x{mult}</div>", unsafe_allow_html=True)
+                    
+                    if mult >= 4.5: st.caption("✅ Deep Value")
+                    elif mult <= 1.5: st.caption("⚠️ Expensive")
+                    else: st.caption(f"⚖️ Fair Value Adjustment")
+            
+            st.divider()
+            verdict_color = "#00C805" if final_score >= 75 else "#FFA500" if final_score >= 45 else "#FF0000"
+            st.markdown(f"""
+            <div class="final-score-box" style="border-color: {verdict_color};">
+                <h2 style="color:#333; margin:0;">FINAL SCORE</h2>
+                <h1 style="color: {verdict_color}; font-size: 80px; margin:0;">{final_score}</h1>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # --- VIEW B: MOBILE ---
+        else:
+            
+            tab1, tab2, tab3 = st.tabs(["🏢 Business", "💰 Value", "🏁 Verdict"])
+            
+            with tab1:
+                st.info(f"Quality Score: **{total_qual:.1f}/20**")
+                for item in qual_results:
+                    with st.chat_message("assistant", avatar="🤖"):
+                        st.write(f"**{item[0]}**")
+                        st.write(f"⭐ {item[1]}")
+                        st.caption(item[2])
+
+            with tab2:
+                c1, c2 = st.columns(2)
+                c1.metric("Price", f"{data['price']:.0f}")
+                c2.metric("PE", f"{pe:.1f}")
+                st.markdown(f"<div class='multiplier-box' style='color:{color_code}; border:2px solid {color_code}'>x{mult}</div>", unsafe_allow_html=True)
+
+            with tab3:
+                verdict_color = "#00C805" if final_score >= 75 else "#FFA500" if final_score >= 45 else "#FF0000"
+                verdict_txt = "BUY" if final_score >= 75 else "HOLD" if final_score >= 45 else "SELL"
+                st.markdown(f"""
+                <div class="final-score-box" style="border-color: {verdict_color};">
+                    <h1 style="color: {verdict_color}; font-size: 60px; margin:0;">{final_score}</h1>
+                    <h3 style="color:#333; margin:0;">{verdict_txt}</h3>
+                </div>
+                """, unsafe_allow_html=True)
+
+    else:
+        st.error(f"Ticker '{final_t}' not found.")
