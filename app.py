@@ -3,6 +3,7 @@ import yfinance as yf
 import pandas as pd
 import re
 from datetime import datetime
+import pytz
 from groq import Groq
 
 # --- PAGE CONFIGURATION ---
@@ -24,34 +25,52 @@ T = {
         "analyze_btn": "Analyze Stock",
         "analyze_mobile_btn": "Analyze (Mobile)",
         
-        # Methodology Section
+        # Methodology & Models
         "methodology": "Methodology:",
         "qual_score": "Qualitative Score (0-20)",
         "qual_detail": "(5 topics x 4 pts)",
         "val_mult": "Valuation Multiplier (1-5)",
-        "val_detail": "(Based on Forward PE Range)",
+        "val_detail": "(Based on Hist. PE Range)",
         "final_score": "= Final Score (0-100)",
         
         "tab_value": "💎 Value Analysis",
         "tab_tech": "📈 Technical Analysis",
         "tab_fin": "📊 Financials",
+        "tab_news": "📰 News & Earnings",
         "topics": ["Unique Product/Moat", "Revenue Growth", "Competitive Advantage", "Profit Stability", "Management"],
         "loading_data": "Fetching data for",
         "loading_ai": "AI Analyzing:",
         "currency": "Currency",
         "industry": "Industry",
+        
+        # Value Tab
         "val_analysis_header": "1. Qualitative Analysis (AI)",
         "quant_val_header": "2. Quantitative Valuation",
         "price": "Price",
         "pe_ttm": "Trailing PE (TTM)",
         "pe_ratio": "Forward PE",
         "multiplier_label": "Valuation Multiplier",
-        
-        # Score Calculation Labels
         "calc_qual": "Qualitative Score",
         "calc_mult": "Multiplier",
         "calc_result": "Final Score",
         "score_calc_title": "VALUE SCORE CALCULATION",
+        "hist_low_pe": "Hist. Low PE (5Y)",
+        "hist_high_pe": "Hist. High PE (5Y)",
+        "pe_pos": "PE Position (5Y)",
+        "pe_pos_low": "Low (Cheap)",
+        "pe_pos_high": "High (Expensive)",
+        
+        # Multiplier Explanation
+        "mult_how": "❓ How is this calculated?",
+        "mult_exp_title": "Logic: Buy Low, Sell High",
+        "mult_exp_desc": "We compare the current PE to its 5-year range. Lower PE (Cheap) gets a higher multiplier to boost the score.",
+        "mult_formula": "Position Formula:",
+        "mult_table_pos": "PE Position",
+        "mult_table_mult": "Multiplier",
+        "mult_table_mean": "Meaning",
+        "status_under": "Undervalued",
+        "status_fair": "Fair Value",
+        "status_over": "Overvalued",
 
         # Grading
         "grading_scale": "Grading Scale:",
@@ -79,6 +98,23 @@ T = {
         "fin_roa": "ROA", "fin_roe": "ROE",
         "fin_eps": "EPS (ttm)", "fin_rev": "Revenue (ttm)",
         "fin_div_yield": "Dividend Yield", "fin_target": "Target Price",
+        "fiscal_year": "Fiscal Year End",
+
+        # News & Earnings
+        "earn_title": "Latest Earnings Announcement",
+        "earn_date": "Date",
+        "earn_est_eps": "Est. EPS",
+        "earn_act_eps": "Actual EPS",
+        "earn_surprise": "Surprise",
+        "ai_summary_title": "AI Earnings & News Summary",
+        "source_link": "Search Official Earnings Report",
+        "qq_title": "Quarterly Financial Trends (Q/Q Change)",
+        "qq_rev": "Revenue",
+        "qq_net_inc": "Net Income",
+        "qq_eps": "Net Income / Share",
+        "qq_op_inc": "Operating Income",
+        "qq_op_exp": "Operating Expenses",
+        "qq_gross_marg": "Gross Margin",
 
         # Actions
         "act_buy_sup": "BUY (Support Bounce) 🟢", "act_buy_break": "STRONG BUY (Breakout) 🚀",
@@ -97,7 +133,6 @@ T = {
         "analyze_btn": "開始分析",
         "analyze_mobile_btn": "開始分析 (手機版)",
         
-        # Methodology Section
         "methodology": "分析方法:",
         "qual_score": "定性評分 (0-20)",
         "qual_detail": "(5個主題 x 4分)",
@@ -108,6 +143,7 @@ T = {
         "tab_value": "💎 價值分析",
         "tab_tech": "📈 技術分析",
         "tab_fin": "📊 財務數據",
+        "tab_news": "📰 新聞與財報",
         "topics": ["獨特產品/護城河", "營收增長潛力", "競爭優勢", "獲利穩定性", "管理層質素"],
         "loading_data": "正在獲取數據：",
         "loading_ai": "AI 正在分析：",
@@ -125,6 +161,24 @@ T = {
         "calc_result": "最終評分",
         "score_calc_title": "價值評分計算",
 
+        "hist_low_pe": "歷史最低 PE (5年)",
+        "hist_high_pe": "歷史最高 PE (5年)",
+        "pe_pos": "目前 PE 位置區間",
+        "pe_pos_low": "低位 (便宜)",
+        "pe_pos_high": "高位 (昂貴)",
+
+        # Multiplier Explanation
+        "mult_how": "❓ 如何計算此倍數？",
+        "mult_exp_title": "邏輯：低買高賣",
+        "mult_exp_desc": "我們將當前 PE 與過去 5 年的歷史區間進行比較。PE 越低（便宜）則倍數越高，從而提升評分。",
+        "mult_formula": "位置計算公式：",
+        "mult_table_pos": "PE 區間位置",
+        "mult_table_mult": "倍數 (Multiplier)",
+        "mult_table_mean": "含義",
+        "status_under": "被低估 (便宜)",
+        "status_fair": "合理估值",
+        "status_over": "被高估 (昂貴)",
+
         "grading_scale": "評級標準:",
         "grade_strong_buy": "非常優秀 (Strong Buy)",
         "grade_buy": "優秀 (Buy)",
@@ -134,7 +188,7 @@ T = {
 
         "tech_verdict": "技術面結論", "reason": "理由",
         "support": "支持位", "resistance": "阻力位", "trend": "趨勢", "squeeze": "擠壓 (VCP)",
-        "lbl_rsi": "RSI (14)", "lbl_vol": "成交量比",
+        "lbl_rsi": "相對強弱指數", "lbl_vol": "成交量比率",
         "status_high": "偏高", "status_low": "偏低", "status_ok": "適中",
         "uptrend": "上升趨勢", "downtrend": "下降趨勢", "weak_uptrend": "弱勢上升", "neutral": "中性",
 
@@ -148,6 +202,23 @@ T = {
         "fin_roa": "ROA", "fin_roe": "ROE",
         "fin_eps": "每股盈利", "fin_rev": "總營收",
         "fin_div_yield": "股息率", "fin_target": "目標價",
+        "fiscal_year": "財政年度結算日",
+
+        # News & Earnings
+        "earn_title": "最新財報發布 (Earnings)",
+        "earn_date": "發布日期",
+        "earn_est_eps": "預估 EPS",
+        "earn_act_eps": "實際 EPS",
+        "earn_surprise": "驚喜幅度 (Surprise)",
+        "ai_summary_title": "AI 財報與新聞摘要",
+        "source_link": "搜尋官方財報",
+        "qq_title": "季度財務趨勢 (Q/Q 環比)",
+        "qq_rev": "總營收 (Revenue)",
+        "qq_net_inc": "淨利潤 (Net Income)",
+        "qq_eps": "每股淨收益 (EPS)",
+        "qq_op_inc": "營業利潤 (Op Income)",
+        "qq_op_exp": "營業費用 (Op Expenses)",
+        "qq_gross_marg": "毛利率 (Gross Margin)",
 
         "act_buy_sup": "買入 (支持位反彈) 🟢", "act_buy_break": "強力買入 (突破) 🚀",
         "act_prep": "準備買入 (VCP擠壓) 🔵", "act_profit": "持有 / 獲利止盈 🟠",
@@ -168,7 +239,7 @@ st.markdown("""
 <style>
     /* Methodology Box Style */
     .methodology-box {
-        background-color: #262730; /* Dark background from screenshot */
+        background-color: #262730;
         padding: 15px;
         border-radius: 10px;
         border: 1px solid #444;
@@ -176,20 +247,9 @@ st.markdown("""
         margin-top: 15px;
         color: #ffffff;
     }
-    .method-header {
-        color: #4da6ff; /* Streamlit Blue */
-        font-weight: bold;
-        font-size: 16px;
-        margin-bottom: 10px;
-    }
-    .method-sub {
-        color: #4da6ff;
-        font-weight: bold;
-    }
-    .method-detail {
-        color: #aaa;
-        font-size: 12px;
-    }
+    .method-header { color: #4da6ff; font-weight: bold; font-size: 16px; margin-bottom: 10px; }
+    .method-sub { color: #4da6ff; font-weight: bold; }
+    .method-detail { color: #aaa; font-size: 12px; }
 
     .multiplier-box {
         font-size: 35px; font-weight: bold; text-align: center; padding: 15px; 
@@ -273,12 +333,23 @@ def get_stock_data(ticker):
                 min_pe = pe_series.min()
                 max_pe = pe_series.max()
         
+        divs = stock.dividends
+        
+        # Fetch Earnings & Q-Financials & News
+        try: earnings_dates = stock.earnings_dates
+        except: earnings_dates = None
+        try: quarterly_financials = stock.quarterly_income_stmt
+        except: quarterly_financials = None
+        try: raw_news = stock.news; news = [n for n in raw_news if n.get('title')]
+        except: news = []
+
         return {
             "price": price, "currency": info.get('currency', 'USD'), "pe": pe,
             "eps": eps, "min_pe": min_pe, "max_pe": max_pe,
             "name": info.get('longName', ticker), "industry": info.get('industry', 'Unknown'),
             "summary": info.get('longBusinessSummary', 'No summary available.'), 
-            "history": hist, "dividends": stock.dividends, "raw_info": info 
+            "history": hist, "dividends": divs, "raw_info": info,
+            "earnings_dates": earnings_dates, "quarterly_financials": quarterly_financials, "news": news
         }
     except: return None
 
@@ -326,21 +397,25 @@ def calculate_technicals(df):
 def analyze_qualitative(ticker, summary, topic):
     PRIMARY_MODEL = "llama-3.3-70b-versatile" 
     BACKUP_MODEL  = "llama-3.1-8b-instant"    
+    
     lang_instruction = "Answer in English."
     if st.session_state.language == 'CN':
         lang_instruction = "You MUST Output the reason in Traditional Chinese (繁體中文)."
 
-    prompt = (
-        f"Analyze {ticker} regarding '{topic}'. Context: {summary}. "
-        f"Give a specific score from 0.0 to 4.0 (use 1 decimal place). "
-        f"Provide a 1 sentence reason. {lang_instruction} "
-        f"Strict Format: SCORE|REASON"
-    )
+    if topic == "EarningsSummary":
+        prompt = f"Summarize the recent financial performance and news for {ticker}. Context: {summary}. Keep it concise (3-4 bullet points). {lang_instruction}"
+    else:
+        prompt = (
+            f"Analyze {ticker} regarding '{topic}'. Context: {summary}. "
+            f"Give a specific score from 0.0 to 4.0 (use 1 decimal place). "
+            f"Provide a 1 sentence reason. {lang_instruction} "
+            f"Strict Format: SCORE|REASON"
+        )
     
     def call_groq(model_id):
         return client.chat.completions.create(
             model=model_id, messages=[{"role": "user", "content": prompt}],
-            temperature=0.1, max_tokens=150 
+            temperature=0.1, max_tokens=400 
         )
 
     try:
@@ -376,11 +451,8 @@ with st.sidebar:
         d_submit = st.form_submit_button(txt('analyze_btn'), type="primary") 
     
     st.markdown("---")
-    
-    # --- ADDED BACK: MODEL INFO ---
     st.caption("**Primary:** Llama 3.3 70B\n**Backup:** Llama 3.1 8B")
 
-    # --- FIXED: METHODOLOGY BOX ---
     st.markdown(f"""
     <div class="methodology-box">
         <div class="method-header">{txt('methodology')}</div>
@@ -432,7 +504,7 @@ if run_analysis:
         st.header(f"{data['name']} ({final_t})")
         st.caption(f"{txt('industry')}: {data['industry']} | {txt('currency')}: {data['currency']}")
         
-        tab_fund, tab_tech, tab_fin = st.tabs([txt('tab_value'), txt('tab_tech'), txt('tab_fin')])
+        tab_fund, tab_tech, tab_fin, tab_news = st.tabs([txt('tab_value'), txt('tab_tech'), txt('tab_fin'), txt('tab_news')])
 
         # --- TAB 1: FUNDAMENTAL ---
         with tab_fund:
@@ -501,8 +573,25 @@ if run_analysis:
                     st.progress(max(0.0, min(1.0, pos_pct)) if pe > 0 else 1.0)
                     st.subheader(txt('multiplier_label'))
                     st.markdown(f"""<div class="multiplier-box" style="border: 2px solid {color_code}; color: {color_code};">x{mult:.0f}</div>""", unsafe_allow_html=True)
+                    
+                    # --- MULTIPLIER EXPLANATION ---
+                    with st.expander(txt('mult_how')):
+                        st.markdown(f"""
+                        **{txt('mult_exp_title')}**  
+                        {txt('mult_exp_desc')}
+                        
+                        **{txt('mult_formula')}**  
+                        `({pe:.2f} - {min_pe:.2f}) / ({max_pe:.2f} - {min_pe:.2f}) = {pos_pct*100:.1f}%`
+                        
+                        | {txt('mult_table_pos')} | {txt('mult_table_mult')} | {txt('mult_table_mean')} |
+                        | :--- | :---: | :--- |
+                        | 0% - 25% | **x5** | {txt('status_under')} |
+                        | 25% - 50% | **x4** | {txt('status_fair')} |
+                        | 50% - 75% | **x3** | {txt('status_fair')} |
+                        | 75% - 100% | **x2** | {txt('status_over')} |
+                        | > 100% | **x1** | {txt('status_over')} |
+                        """)
 
-            # --- SCORE CALCULATION ---
             st.markdown(f"""
             <div class="final-score-box" style="border-color: {v_border}; padding: 20px;">
             <h3 style="color:#555; margin:0;">{txt('score_calc_title')}</h3>
@@ -518,7 +607,6 @@ if run_analysis:
             </div></div>
             """, unsafe_allow_html=True)
 
-            # --- GRADING SCALE ---
             with st.expander(txt('grading_scale'), expanded=False):
                 st.markdown(f"""
                 <table class="grade-table">
@@ -585,5 +673,69 @@ if run_analysis:
                 df_divs['Date'] = df_divs['Date'].dt.strftime('%Y-%m-%d')
                 st.table(df_divs)
             else: st.info(txt('no_div'))
+            st.caption(f"{txt('fiscal_year')}: {fmt_date(i.get('lastFiscalYearEnd'))}")
+
+        # --- TAB 4: NEWS & EARNINGS (NEW) ---
+        with tab_news:
+            st.subheader(txt('earn_title'))
+            latest_earnings = None; earn_date = "N/A"
+            if data['earnings_dates'] is not None and not data['earnings_dates'].empty:
+                now = pd.Timestamp.now(tz=data['earnings_dates'].index.tz)
+                past_earnings = data['earnings_dates'][data['earnings_dates'].index < now]
+                if not past_earnings.empty:
+                    latest_earnings = past_earnings.iloc[0]; earn_date = past_earnings.index[0].strftime('%Y-%m-%d')
+            
+            if latest_earnings is not None:
+                with st.container(border=True):
+                    ec1, ec2, ec3, ec4 = st.columns(4)
+                    ec1.metric(txt('earn_date'), earn_date)
+                    est_eps = latest_earnings.get('EPS Estimate'); ec2.metric(txt('earn_est_eps'), f"{est_eps:.2f}" if pd.notna(est_eps) else "-")
+                    act_eps = latest_earnings.get('Reported EPS'); ec3.metric(txt('earn_act_eps'), f"{act_eps:.2f}" if pd.notna(act_eps) else "-")
+                    surprise = latest_earnings.get('Surprise(%)'); ec4.metric(txt('earn_surprise'), f"{surprise*100:.2f}%" if pd.notna(surprise) else "-", delta="Positive" if pd.notna(surprise) and surprise > 0 else "Negative" if pd.notna(surprise) and surprise < 0 else None)
+            else: st.info("No recent earnings data available.")
+
+            st.markdown("---")
+            
+            # Q/Q Trends
+            st.subheader(txt('qq_title'))
+            q_stmt = data['quarterly_financials']
+            if q_stmt is not None and q_stmt.shape[1] >= 2:
+                curr = q_stmt.iloc[:, 0]; prev = q_stmt.iloc[:, 1]
+                def calc_pct(cur, pre):
+                    try: return ((cur - pre) / abs(pre)) * 100 if pre != 0 else None
+                    except: return None
+                def show_qq(label, cur_val, prev_val, is_curr=True, is_pct=False):
+                    pct = calc_pct(cur_val, prev_val)
+                    disp = fmt_num(cur_val, is_currency=is_curr, is_pct=is_pct)
+                    if is_pct: disp = f"{cur_val*100:.2f}%" if pd.notna(cur_val) else "-"
+                    st.metric(label, disp, f"{pct:.2f}%" if pct is not None else "-", delta_color="normal")
+
+                c_q1, c_q2, c_q3 = st.columns(3)
+                with c_q1: show_qq(txt('qq_rev'), curr.get('Total Revenue'), prev.get('Total Revenue')); show_qq(txt('qq_op_inc'), curr.get('Operating Income'), prev.get('Operating Income'))
+                with c_q2: show_qq(txt('qq_net_inc'), curr.get('Net Income'), prev.get('Net Income')); show_qq(txt('qq_op_exp'), curr.get('Operating Expense'), prev.get('Operating Expense'))
+                with c_q3: 
+                    show_qq(txt('qq_eps'), curr.get('Basic EPS'), prev.get('Basic EPS'), is_curr=False)
+                    try:
+                        gm_c = curr.get('Gross Profit') / curr.get('Total Revenue'); gm_p = prev.get('Gross Profit') / prev.get('Total Revenue')
+                        diff_bps = (gm_c - gm_p) * 100
+                        st.metric(txt('qq_gross_marg'), f"{gm_c*100:.2f}%", f"{diff_bps:.2f} bps")
+                    except: st.metric(txt('qq_gross_marg'), "-")
+            else: st.info("Insufficient quarterly data.")
+
+            st.markdown("---")
+            st.subheader(txt('ai_summary_title'))
+            news_text = ""
+            if data['news']:
+                for n in data['news'][:5]: news_text += f"- {n.get('title', 'No Title')}\n"
+            
+            q_rev = fmt_num(q_stmt.iloc[:, 0].get('Total Revenue'), is_currency=True) if q_stmt is not None else "N/A"
+            earn_ctx = f"Last Earnings Date: {earn_date}. EPS: {latest_earnings.get('Reported EPS') if latest_earnings is not None else 'N/A'}. Revenue: {q_rev}."
+            
+            with st.spinner(txt('loading_ai')):
+                summary_text, _ = analyze_qualitative(data['name'], f"{earn_ctx}\nNews:\n{news_text}", "EarningsSummary")
+                st.success(summary_text)
+            
+            st.markdown("---")
+            st.link_button(txt('source_link'), f"https://www.google.com/search?q={data['name']}+{final_t}+Investor+Relations+Earnings+Release")
 
     else: st.error(f"Ticker '{final_t}' not found.")
