@@ -31,11 +31,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- API KEY SETUP ---
-# Ensure you have a .streamlit/secrets.toml file with GROQ_API_KEY = "your_key"
 try:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 except (FileNotFoundError, KeyError):
-    # Fallback for local testing if secrets file isn't set up
     GROQ_API_KEY = st.sidebar.text_input("Enter Groq API Key", type="password")
     if not GROQ_API_KEY:
         st.warning("⚠️ Please enter a Groq API Key in the sidebar or set it in .streamlit/secrets.toml")
@@ -56,18 +54,15 @@ def get_stock_data(ticker):
             return None
 
         current_price = info.get('currentPrice', 0)
-        # Fallback if currentPrice is missing
         if current_price == 0:
             hist = stock.history(period="1d")
             if not hist.empty:
                 current_price = hist['Close'].iloc[-1]
 
         eps_fwd = info.get('forwardEps', 1)
-        # Avoid division by zero or None
         if eps_fwd is None or eps_fwd == 0: 
-            eps_fwd = info.get('trailingEps', 1) # Fallback to trailing
+            eps_fwd = info.get('trailingEps', 1) 
         
-        # Calculate Forward PE
         fwd_pe = current_price / eps_fwd if eps_fwd > 0 else 0
         
         return {
@@ -108,11 +103,16 @@ def analyze_qualitative(ticker, summary, topic):
     except Exception as e:
         return f"0|Error analyzing: {e}"
 
-# --- SIDEBAR ---
+# --- SIDEBAR (MODIFIED FOR ENTER KEY SUPPORT) ---
 with st.sidebar:
     st.title("⚙️ Analysis Tool")
-    ticker_input = st.text_input("Enter US Stock Ticker", value="NVDA", max_chars=5).upper()
-    analyze_btn = st.button("Analyze Stock", type="primary")
+    
+    # We use a form here. When a user presses Enter in the text input, 
+    # it triggers the submit button automatically.
+    with st.form(key='search_form'):
+        ticker_input = st.text_input("Enter US Stock Ticker", value="NVDA", max_chars=5).upper()
+        # st.button becomes st.form_submit_button inside a form
+        analyze_btn = st.form_submit_button("Analyze Stock", type="primary")
     
     st.markdown("---")
     st.info("**Methodology:**\n\nQualitative Score (0-20) \n\n× \n\nValuation Multiplier (1-5) \n\n= **Final Score (0-100)**")
@@ -160,7 +160,6 @@ if analyze_btn:
                     
                     total_qual_score += score
                     
-                    # Display Result
                     st.markdown(f"**Score: {score}/4** — {explanation.strip()}")
             
             progress_bar.empty()
@@ -188,16 +187,9 @@ if analyze_btn:
                 st.divider()
                 st.markdown("#### Valuation Multiplier")
                 
-                # --- FIX: USING HTML INSTEAD OF MARKDOWN FOR CUSTOM COLORS ---
-                # This fixes the issue where "darkred" or "lightgreen" showed as text
                 html_colors = {
-                    5: "#00C805", # Bright Green
-                    4: "#90EE90", # Light Green
-                    3: "#FFA500", # Orange
-                    2: "#FF4500", # Orange Red
-                    1: "#8B0000"  # Dark Red
+                    5: "#00C805", 4: "#90EE90", 3: "#FFA500", 2: "#FF4500", 1: "#8B0000"
                 }
-                
                 color_hex = html_colors.get(multiplier, "#333333")
                 
                 st.markdown(
