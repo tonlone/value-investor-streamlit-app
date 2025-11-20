@@ -3,7 +3,6 @@ import yfinance as yf
 import pandas as pd
 import re
 from datetime import datetime
-import requests
 from groq import Groq
 
 # --- PAGE CONFIGURATION ---
@@ -16,7 +15,7 @@ if 'language' not in st.session_state:
 def toggle_language():
     st.session_state.language = 'CN' if st.session_state.language == 'EN' else 'EN'
 
-# --- TRANSLATION DICTIONARY ---
+# --- TRANSLATION DICTIONARY (Merged from Local App) ---
 T = {
     "EN": {
         "sidebar_title": "Analysis Tool",
@@ -54,6 +53,7 @@ T = {
         "pe_pos": "PE Position (5Y)",
         "pe_pos_low": "Low (Cheap)",
         "pe_pos_high": "High (Expensive)",
+        "val_ai_analysis": "Historical Valuation Context",
         "mult_how": "❓ How is this calculated?",
         "mult_exp_title": "Logic: Buy Low, Sell High",
         "mult_exp_desc": "We compare the current PE to its 5-year range. Lower PE (Cheap) gets a higher multiplier to boost the score.",
@@ -145,6 +145,7 @@ T = {
         "pe_pos": "目前 PE 位置區間",
         "pe_pos_low": "低位 (便宜)",
         "pe_pos_high": "高位 (昂貴)",
+        "val_ai_analysis": "歷史估值分析",
         "mult_how": "❓ 如何計算此倍數？",
         "mult_exp_title": "邏輯：低買高賣",
         "mult_exp_desc": "我們將當前 PE 與過去 5 年的歷史區間進行比較。PE 越低（便宜）則倍數越高，從而提升評分。",
@@ -284,9 +285,9 @@ def get_stock_data(ticker):
         if price == 0 and not hist.empty: price = hist['Close'].iloc[-1]
         
         eps = info.get('forwardEps')
-        if eps is None: eps = info.get('trailingEps')
-        
         pe = info.get('forwardPE')
+        if eps is None: eps = info.get('trailingEps')
+        if pe is None: pe = info.get('trailingPE')
         if pe is None: pe = price / eps if (eps and eps > 0) else 0
 
         min_pe, max_pe = 0, 0
@@ -301,10 +302,8 @@ def get_stock_data(ticker):
         
         try: earnings_dates = stock.earnings_dates
         except: earnings_dates = None
-        
         try: quarterly_financials = stock.quarterly_income_stmt
         except: quarterly_financials = None
-            
         try: raw_news = stock.news; news = [n for n in raw_news if n.get('title')]
         except: news = []
 
@@ -323,66 +322,52 @@ def calculate_technicals(df):
     df_recent = df.tail(300).copy()
     df_recent['SMA_50'] = df_recent['Close'].rolling(window=50).mean()
     df_recent['SMA_200'] = df_recent['Close'].rolling(window=200).mean()
-    
     delta = df_recent['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     df_recent['RSI'] = 100 - (100 / (1 + rs))
-    
     avg_vol = df_recent['Volume'].rolling(window=20).mean().iloc[-1]
     curr_vol = df_recent['Volume'].iloc[-1]
     vol_ratio = curr_vol / avg_vol if avg_vol > 0 else 1.0
-    
     recent_60 = df_recent.tail(60)
     support = recent_60['Low'].min()
     resistance = recent_60['High'].max()
-    
     vol_short = df_recent['Close'].rolling(window=10).std().iloc[-1]
     vol_long = df_recent['Close'].rolling(window=60).std().iloc[-1]
     is_squeezing = vol_short < (vol_long * 0.5)
-    
-    curr_price = df_recent['Close'].iloc[-1]
+    current_price = df_recent['Close'].iloc[-1]
     sma_50 = df_recent['SMA_50'].iloc[-1]
     sma_200 = df_recent['SMA_200'].iloc[-1]
-    
     trend = "neutral"
-    if curr_price > sma_200:
-        trend = "uptrend" if curr_price > sma_50 else "weak_uptrend"
-    else:
-        trend = "downtrend"
-        
+    if current_price > sma_200: trend = "uptrend" if current_price > sma_50 else "weak_uptrend"
+    else: trend = "downtrend"
     return {
         "trend": trend, "rsi": df_recent['RSI'].iloc[-1], 
         "support": support, "resistance": resistance,
         "vol_ratio": vol_ratio, "is_squeezing": is_squeezing,
-        "last_price": curr_price, "data": df_recent 
+        "last_price": current_price, "data": df_recent 
     }
 
 def analyze_qualitative(ticker, summary, topic):
     PRIMARY_MODEL = "llama-3.3-70b-versatile" 
     BACKUP_MODEL  = "llama-3.1-8b-instant"    
-    
     lang_instruction = "Answer in English."
     if st.session_state.language == 'CN':
         lang_instruction = "You MUST Output the reason in Traditional Chinese (繁體中文)."
-
+    
     if topic == "EarningsSummary":
         prompt = f"Summarize the recent financial performance and news for {ticker}. Context: {summary}. Keep it concise (3-4 bullet points). {lang_instruction}"
+    elif topic == "ValuationSummary":
+        prompt = f"Analyze the Valuation for {ticker}. Context: {summary}. Is the stock cheap or expensive based on its 5-Year PE Range? Write 1 concise sentence summarizing its valuation status. {lang_instruction}"
     else:
-        prompt = (
-            f"Analyze {ticker} regarding '{topic}'. Context: {summary}. "
-            f"Give a specific score from 0.0 to 4.0 (use 1 decimal place). "
-            f"Provide a 1 sentence reason. {lang_instruction} "
-            f"Strict Format: SCORE|REASON"
-        )
+        prompt = f"Analyze {ticker} regarding '{topic}'. Context: {summary}. Give a specific score from 0.0 to 4.0 (use 1 decimal place). Provide a 1 sentence reason. {lang_instruction} Strict Format: SCORE|REASON"
     
     def call_groq(model_id):
         return client.chat.completions.create(
             model=model_id, messages=[{"role": "user", "content": prompt}],
             temperature=0.1, max_tokens=400 
         )
-
     try:
         resp = call_groq(PRIMARY_MODEL)
         return resp.choices[0].message.content, False
@@ -417,7 +402,6 @@ with st.sidebar:
     
     st.markdown("---")
     st.caption("**Primary:** Llama 3.3 70B\n**Backup:** Llama 3.1 8B")
-
     st.markdown(f"""
     <div class="methodology-box">
         <div class="method-header">{txt('methodology')}</div>
@@ -454,9 +438,7 @@ elif m_submit:
 
 # --- MAIN EXECUTION ---
 if run_analysis:
-    raw_t = st.session_state.active_ticker
-    mkt = st.session_state.active_market
-    final_t = raw_t
+    raw_t = st.session_state.active_ticker; mkt = st.session_state.active_market; final_t = raw_t
     if mkt == "Canada (TSX)" and ".TO" not in raw_t: final_t += ".TO"
     elif mkt == "HK (HKEX)": 
         nums = ''.join(filter(str.isdigit, raw_t))
@@ -641,10 +623,10 @@ if run_analysis:
         with tab_news:
             st.subheader(txt('earn_title'))
             
-            # Initialize vars
-            act_eps = None
-            earn_date = "N/A"
+            # Initialize Variables to prevent NameError
             latest_earnings = None
+            earn_date = "N/A"
+            act_eps = None
             
             if data['earnings_dates'] is not None and not data['earnings_dates'].empty:
                 now = pd.Timestamp.now(tz=data['earnings_dates'].index.tz)
@@ -657,18 +639,25 @@ if run_analysis:
                 with st.container(border=True):
                     ec1, ec2, ec3, ec4 = st.columns(4)
                     ec1.metric(txt('earn_date'), earn_date)
-                    
                     est_eps = latest_earnings.get('EPS Estimate')
                     ec2.metric(txt('earn_est_eps'), f"{est_eps:.2f}" if pd.notna(est_eps) else "-")
                     
                     act_eps = latest_earnings.get('Reported EPS')
                     ec3.metric(txt('earn_act_eps'), f"{act_eps:.2f}" if pd.notna(act_eps) else "-")
                     
-                    # FIX: REMOVE MULTIPLICATION BY 100
-                    surprise = latest_earnings.get('Surprise(%)')
-                    ec4.metric(txt('earn_surprise'), 
-                               f"{surprise:.2f}%" if pd.notna(surprise) else "-", 
-                               delta="Positive" if pd.notna(surprise) and surprise > 0 else "Negative" if pd.notna(surprise) and surprise < 0 else None)
+                    # Surprise Calculation Logic
+                    surprise_val = latest_earnings.get('Surprise(%)')
+                    surprise_str = "-"
+                    
+                    if pd.notna(surprise_val):
+                        # If value is like 0.25 (25%) -> multiply by 100
+                        # If value is like 25.0 (25%) -> display as is
+                        if abs(surprise_val) < 2.0: 
+                            surprise_str = f"{surprise_val*100:.2f}%"
+                        else:
+                            surprise_str = f"{surprise_val:.2f}%"
+                            
+                    ec4.metric(txt('earn_surprise'), surprise_str, delta="Positive" if pd.notna(surprise_val) and surprise_val > 0 else "Negative" if pd.notna(surprise_val) and surprise_val < 0 else None)
             else: 
                 st.info("No specific earnings calendar data found.")
 
