@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 import re
 from datetime import datetime
-import pytz
+import requests
 from groq import Groq
 
 # --- PAGE CONFIGURATION ---
@@ -136,12 +136,10 @@ T = {
         "pe_ttm": "歷史市盈率 (Trailing)",
         "pe_ratio": "預測市盈率 (Forward)",
         "multiplier_label": "本益比乘數 (Multiplier)",
-        
         "calc_qual": "投資評估分數",
         "calc_mult": "本益比乘數",
         "calc_result": "最終評分",
         "score_calc_title": "價值評分計算",
-
         "hist_low_pe": "歷史最低 PE (5年)",
         "hist_high_pe": "歷史最高 PE (5年)",
         "pe_pos": "目前 PE 位置區間",
@@ -277,7 +275,6 @@ def fmt_date(ts):
 
 def get_stock_data(ticker):
     try:
-        # Standard yfinance call (No custom session)
         stock = yf.Ticker(ticker)
         info = stock.info
         if not info: return None
@@ -643,27 +640,36 @@ if run_analysis:
         # --- TAB 4: NEWS & EARNINGS ---
         with tab_news:
             st.subheader(txt('earn_title'))
-            latest_earnings = None; earn_date = "N/A"
+            
+            # Initialize vars
+            act_eps = None
+            earn_date = "N/A"
+            latest_earnings = None
+            
             if data['earnings_dates'] is not None and not data['earnings_dates'].empty:
                 now = pd.Timestamp.now(tz=data['earnings_dates'].index.tz)
                 past_earnings = data['earnings_dates'][data['earnings_dates'].index < now]
                 if not past_earnings.empty:
-                    latest_earnings = past_earnings.iloc[0]; earn_date = past_earnings.index[0].strftime('%Y-%m-%d')
+                    latest_earnings = past_earnings.iloc[0]
+                    earn_date = past_earnings.index[0].strftime('%Y-%m-%d')
             
             if latest_earnings is not None:
                 with st.container(border=True):
                     ec1, ec2, ec3, ec4 = st.columns(4)
                     ec1.metric(txt('earn_date'), earn_date)
-                    est_eps = latest_earnings.get('EPS Estimate'); ec2.metric(txt('earn_est_eps'), f"{est_eps:.2f}" if pd.notna(est_eps) else "-")
-                    act_eps = latest_earnings.get('Reported EPS'); ec3.metric(txt('earn_act_eps'), f"{act_eps:.2f}" if pd.notna(act_eps) else "-")
                     
-                    # --- FIX: REMOVE MULTIPLICATION BY 100 ---
+                    est_eps = latest_earnings.get('EPS Estimate')
+                    ec2.metric(txt('earn_est_eps'), f"{est_eps:.2f}" if pd.notna(est_eps) else "-")
+                    
+                    act_eps = latest_earnings.get('Reported EPS')
+                    ec3.metric(txt('earn_act_eps'), f"{act_eps:.2f}" if pd.notna(act_eps) else "-")
+                    
+                    # FIX: REMOVE MULTIPLICATION BY 100
                     surprise = latest_earnings.get('Surprise(%)')
                     ec4.metric(txt('earn_surprise'), 
                                f"{surprise:.2f}%" if pd.notna(surprise) else "-", 
                                delta="Positive" if pd.notna(surprise) and surprise > 0 else "Negative" if pd.notna(surprise) and surprise < 0 else None)
             else: 
-                # Fallback if specific "earnings_dates" is blocked but we have recent data
                 st.info("No specific earnings calendar data found.")
 
             st.markdown("---")
