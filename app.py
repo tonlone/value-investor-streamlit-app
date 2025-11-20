@@ -24,15 +24,12 @@ T = {
         "ticker_label": "Enter Stock Ticker",
         "analyze_btn": "Analyze Stock",
         "analyze_mobile_btn": "Analyze (Mobile)",
-        
-        # Methodology & Models
         "methodology": "Methodology:",
         "qual_score": "Qualitative Score (0-20)",
         "qual_detail": "(5 topics x 4 pts)",
         "val_mult": "Valuation Multiplier (1-5)",
         "val_detail": "(Based on Hist. PE Range)",
         "final_score": "= Final Score (0-100)",
-        
         "tab_value": "💎 Value Analysis",
         "tab_tech": "📈 Technical Analysis",
         "tab_fin": "📊 Financials",
@@ -42,8 +39,6 @@ T = {
         "loading_ai": "AI Analyzing:",
         "currency": "Currency",
         "industry": "Industry",
-        
-        # Value Tab
         "val_analysis_header": "1. Qualitative Analysis (AI)",
         "quant_val_header": "2. Quantitative Valuation",
         "price": "Price",
@@ -59,8 +54,6 @@ T = {
         "pe_pos": "PE Position (5Y)",
         "pe_pos_low": "Low (Cheap)",
         "pe_pos_high": "High (Expensive)",
-        
-        # Multiplier Explanation
         "mult_how": "❓ How is this calculated?",
         "mult_exp_title": "Logic: Buy Low, Sell High",
         "mult_exp_desc": "We compare the current PE to its 5-year range. Lower PE (Cheap) gets a higher multiplier to boost the score.",
@@ -71,23 +64,17 @@ T = {
         "status_under": "Undervalued",
         "status_fair": "Fair Value",
         "status_over": "Overvalued",
-
-        # Grading
         "grading_scale": "Grading Scale:",
         "grade_strong_buy": "Very Excellent / Strong Buy",
         "grade_buy": "Excellent / Buy",
         "grade_hold": "Good / Hold",
         "grade_sell": "Average / Sell",
         "grade_avoid": "Poor / Avoid",
-
-        # Technicals
         "tech_verdict": "Technical Verdict", "reason": "Reason",
         "support": "Support", "resistance": "Resistance", "trend": "Trend", "squeeze": "Squeeze",
         "lbl_rsi": "RSI (14)", "lbl_vol": "Vol Ratio",
         "status_high": "High", "status_low": "Low", "status_ok": "OK",
         "uptrend": "Uptrend", "downtrend": "Downtrend", "weak_uptrend": "Weak Uptrend", "neutral": "Neutral",
-
-        # Financials
         "recent_div": "💰 Recent Dividend History",
         "no_div": "No recent dividend history available.",
         "fin_mkt_cap": "Market Cap", "fin_ent_val": "Enterprise Val",
@@ -99,8 +86,6 @@ T = {
         "fin_eps": "EPS (ttm)", "fin_rev": "Revenue (ttm)",
         "fin_div_yield": "Dividend Yield", "fin_target": "Target Price",
         "fiscal_year": "Fiscal Year End",
-
-        # News & Earnings
         "earn_title": "Latest Earnings Announcement",
         "earn_date": "Date",
         "earn_est_eps": "Est. EPS",
@@ -115,8 +100,6 @@ T = {
         "qq_op_inc": "Operating Income",
         "qq_op_exp": "Operating Expenses",
         "qq_gross_marg": "Gross Margin",
-
-        # Actions
         "act_buy_sup": "BUY (Support Bounce) 🟢", "act_buy_break": "STRONG BUY (Breakout) 🚀",
         "act_prep": "PREPARE TO BUY (VCP) 🔵", "act_profit": "HOLD / TAKE PROFIT 🟠",
         "act_buy_hold": "BUY / HOLD 🟢", "act_sell_sup": "SELL / AVOID 🔴",
@@ -132,14 +115,12 @@ T = {
         "ticker_label": "輸入股票代號",
         "analyze_btn": "開始分析",
         "analyze_mobile_btn": "開始分析 (手機版)",
-        
         "methodology": "分析方法:",
         "qual_score": "定性評分 (0-20)",
         "qual_detail": "(5個主題 x 4分)",
         "val_mult": "估值倍數 (1-5)",
         "val_detail": "(基於歷史 PE 區間)",
         "final_score": "= 最終評分 (0-100)",
-
         "tab_value": "💎 價值分析",
         "tab_tech": "📈 技術分析",
         "tab_fin": "📊 財務數據",
@@ -155,19 +136,15 @@ T = {
         "pe_ttm": "歷史市盈率 (Trailing)",
         "pe_ratio": "預測市盈率 (Forward)",
         "multiplier_label": "本益比乘數 (Multiplier)",
-        
         "calc_qual": "投資評估分數",
         "calc_mult": "本益比乘數",
         "calc_result": "最終評分",
         "score_calc_title": "價值評分計算",
-
         "hist_low_pe": "歷史最低 PE (5年)",
         "hist_high_pe": "歷史最高 PE (5年)",
         "pe_pos": "目前 PE 位置區間",
         "pe_pos_low": "低位 (便宜)",
         "pe_pos_high": "高位 (昂貴)",
-
-        # Multiplier Explanation
         "mult_how": "❓ 如何計算此倍數？",
         "mult_exp_title": "邏輯：低買高賣",
         "mult_exp_desc": "我們將當前 PE 與過去 5 年的歷史區間進行比較。PE 越低（便宜）則倍數越高，從而提升評分。",
@@ -178,20 +155,17 @@ T = {
         "status_under": "被低估 (便宜)",
         "status_fair": "合理估值",
         "status_over": "被高估 (昂貴)",
-
         "grading_scale": "評級標準:",
         "grade_strong_buy": "非常優秀 (Strong Buy)",
         "grade_buy": "優秀 (Buy)",
         "grade_hold": "良好 (Hold)",
         "grade_sell": "普通 (Sell)",
         "grade_avoid": "差 (Avoid)",
-
         "tech_verdict": "技術面結論", "reason": "理由",
         "support": "支持位", "resistance": "阻力位", "trend": "趨勢", "squeeze": "擠壓 (VCP)",
         "lbl_rsi": "相對強弱指數", "lbl_vol": "成交量比率",
         "status_high": "偏高", "status_low": "偏低", "status_ok": "適中",
         "uptrend": "上升趨勢", "downtrend": "下降趨勢", "weak_uptrend": "弱勢上升", "neutral": "中性",
-
         "recent_div": "💰 近期派息記錄",
         "no_div": "沒有近期派息記錄。",
         "fin_mkt_cap": "市值", "fin_ent_val": "企業價值",
@@ -203,8 +177,6 @@ T = {
         "fin_eps": "每股盈利", "fin_rev": "總營收",
         "fin_div_yield": "股息率", "fin_target": "目標價",
         "fiscal_year": "財政年度結算日",
-
-        # News & Earnings
         "earn_title": "最新財報發布 (Earnings)",
         "earn_date": "發布日期",
         "earn_est_eps": "預估 EPS",
@@ -219,7 +191,6 @@ T = {
         "qq_op_inc": "營業利潤 (Op Income)",
         "qq_op_exp": "營業費用 (Op Expenses)",
         "qq_gross_marg": "毛利率 (Gross Margin)",
-
         "act_buy_sup": "買入 (支持位反彈) 🟢", "act_buy_break": "強力買入 (突破) 🚀",
         "act_prep": "準備買入 (VCP擠壓) 🔵", "act_profit": "持有 / 獲利止盈 🟠",
         "act_buy_hold": "買入 / 持有 🟢", "act_sell_sup": "賣出 / 觀望 🔴",
@@ -237,20 +208,13 @@ def txt(key):
 # --- CSS STYLING ---
 st.markdown("""
 <style>
-    /* Methodology Box Style */
     .methodology-box {
-        background-color: #262730;
-        padding: 15px;
-        border-radius: 10px;
-        border: 1px solid #444;
-        font-size: 14px;
-        margin-top: 15px;
-        color: #ffffff;
+        background-color: #262730; padding: 15px; border-radius: 10px;
+        border: 1px solid #444; font-size: 14px; margin-top: 15px; color: #ffffff;
     }
     .method-header { color: #4da6ff; font-weight: bold; font-size: 16px; margin-bottom: 10px; }
     .method-sub { color: #4da6ff; font-weight: bold; }
     .method-detail { color: #aaa; font-size: 12px; }
-
     .multiplier-box {
         font-size: 35px; font-weight: bold; text-align: center; padding: 15px; 
         border-radius: 10px; background-color: #ffffff; margin-top: 10px;
@@ -335,11 +299,13 @@ def get_stock_data(ticker):
         
         divs = stock.dividends
         
-        # Fetch Earnings & Q-Financials & News
         try: earnings_dates = stock.earnings_dates
         except: earnings_dates = None
+        
+        # --- FIX: SAFER QUARTERLY FETCH ---
         try: quarterly_financials = stock.quarterly_income_stmt
         except: quarterly_financials = None
+            
         try: raw_news = stock.news; news = [n for n in raw_news if n.get('title')]
         except: news = []
 
@@ -574,15 +540,12 @@ if run_analysis:
                     st.subheader(txt('multiplier_label'))
                     st.markdown(f"""<div class="multiplier-box" style="border: 2px solid {color_code}; color: {color_code};">x{mult:.0f}</div>""", unsafe_allow_html=True)
                     
-                    # --- MULTIPLIER EXPLANATION ---
                     with st.expander(txt('mult_how')):
                         st.markdown(f"""
                         **{txt('mult_exp_title')}**  
                         {txt('mult_exp_desc')}
-                        
                         **{txt('mult_formula')}**  
                         `({pe:.2f} - {min_pe:.2f}) / ({max_pe:.2f} - {min_pe:.2f}) = {pos_pct*100:.1f}%`
-                        
                         | {txt('mult_table_pos')} | {txt('mult_table_mult')} | {txt('mult_table_mean')} |
                         | :--- | :---: | :--- |
                         | 0% - 25% | **x5** | {txt('status_under')} |
@@ -675,7 +638,7 @@ if run_analysis:
             else: st.info(txt('no_div'))
             st.caption(f"{txt('fiscal_year')}: {fmt_date(i.get('lastFiscalYearEnd'))}")
 
-        # --- TAB 4: NEWS & EARNINGS (NEW) ---
+        # --- TAB 4: NEWS & EARNINGS ---
         with tab_news:
             st.subheader(txt('earn_title'))
             latest_earnings = None; earn_date = "N/A"
@@ -696,12 +659,14 @@ if run_analysis:
 
             st.markdown("---")
             
-            # Q/Q Trends
+            # Q/Q Trends with FIX
             st.subheader(txt('qq_title'))
             q_stmt = data['quarterly_financials']
+            
+            # FIX: Strict check for sufficient columns (at least 2)
             if q_stmt is not None and not q_stmt.empty and q_stmt.shape[1] >= 2:
-                curr = q_stmt.iloc[:, 0] # Latest Quarter
-                prev = q_stmt.iloc[:, 1] # Previous Quarter
+                curr = q_stmt.iloc[:, 0]
+                prev = q_stmt.iloc[:, 1]
                 
                 def calc_pct(cur, pre):
                     try: return ((cur - pre) / abs(pre)) * 100 if pre != 0 else None
@@ -728,15 +693,19 @@ if run_analysis:
                         diff_bps = (gm_c - gm_p) * 100
                         st.metric(txt('qq_gross_marg'), f"{gm_c*100:.2f}%", f"{diff_bps:.2f} bps")
                     except: st.metric(txt('qq_gross_marg'), "-")
-            else: st.info("Insufficient quarterly data for Q/Q comparison.")
+            else: 
+                st.info("Insufficient quarterly data for Q/Q comparison.")
 
             st.markdown("---")
             st.subheader(txt('ai_summary_title'))
             
-            # Prepare context safely
+            # FIX: Safer logic for fetching Q-Revenue for Context
             q_rev_disp = "N/A"
-            if q_stmt is not None and not q_stmt.empty:
-                q_rev_disp = fmt_num(q_stmt.iloc[:, 0].get('Total Revenue'), is_currency=True)
+            if q_stmt is not None and not q_stmt.empty and q_stmt.shape[1] > 0:
+                try:
+                    q_rev_disp = fmt_num(q_stmt.iloc[:, 0].get('Total Revenue'), is_currency=True)
+                except: 
+                    pass
 
             news_text = ""
             if data['news']:
