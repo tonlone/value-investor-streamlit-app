@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 import re
 from datetime import datetime
-import pytz
+import requests # Needed for the fix
 from groq import Groq
 
 # --- PAGE CONFIGURATION ---
@@ -136,10 +136,12 @@ T = {
         "pe_ttm": "歷史市盈率 (Trailing)",
         "pe_ratio": "預測市盈率 (Forward)",
         "multiplier_label": "本益比乘數 (Multiplier)",
+        
         "calc_qual": "投資評估分數",
         "calc_mult": "本益比乘數",
         "calc_result": "最終評分",
         "score_calc_title": "價值評分計算",
+
         "hist_low_pe": "歷史最低 PE (5年)",
         "hist_high_pe": "歷史最高 PE (5年)",
         "pe_pos": "目前 PE 位置區間",
@@ -274,8 +276,15 @@ def fmt_date(ts):
     except: return str(ts)
 
 def get_stock_data(ticker):
+    # --- FIX: USE REQUESTS SESSION TO AVOID CLOUD BLOCKING ---
+    session = requests.Session()
+    session.headers.update({
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    })
+
     try:
-        stock = yf.Ticker(ticker)
+        # Pass session to Ticker
+        stock = yf.Ticker(ticker, session=session)
         info = stock.info
         if not info: return None
         
@@ -316,7 +325,9 @@ def get_stock_data(ticker):
             "history": hist, "dividends": divs, "raw_info": info,
             "earnings_dates": earnings_dates, "quarterly_financials": quarterly_financials, "news": news
         }
-    except: return None
+    except Exception as e:
+        st.error(f"Data Fetch Error: {e}")
+        return None
 
 def calculate_technicals(df):
     if df.empty or len(df) < 200: return None
@@ -659,8 +670,9 @@ if run_analysis:
                     ec4.metric(txt('earn_surprise'), 
                                f"{surprise:.2f}%" if pd.notna(surprise) else "-", 
                                delta="Positive" if pd.notna(surprise) and surprise > 0 else "Negative" if pd.notna(surprise) and surprise < 0 else None)
-
-            else: st.info("No specific earnings calendar data found.")
+            else: 
+                # Fallback if specific "earnings_dates" is blocked but we have recent data
+                st.info("Specific earnings calendar date not found, but checking quarterly data...")
 
             st.markdown("---")
             
@@ -717,7 +729,7 @@ if run_analysis:
                 for n in data['news'][:5]:
                     news_text += f"- {n.get('title', 'No Title')}\n"
             
-            earn_context = f"Last Earnings Date: {earn_date}. Reported EPS: {latest_earnings.get('Reported EPS') if latest_earnings is not None else 'N/A'}. Revenue: {q_rev_disp}."
+            earn_context = f"Last Earnings Date: {earn_date}. Reported EPS: {act_eps if pd.notna(act_eps) else 'N/A'}. Revenue: {q_rev_disp}."
             full_context = f"{earn_context}\nRecent Headlines:\n{news_text}"
             
             with st.spinner(txt('loading_ai')):
