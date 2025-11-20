@@ -302,7 +302,6 @@ def get_stock_data(ticker):
         try: earnings_dates = stock.earnings_dates
         except: earnings_dates = None
         
-        # --- FIX: SAFER QUARTERLY FETCH ---
         try: quarterly_financials = stock.quarterly_income_stmt
         except: quarterly_financials = None
             
@@ -654,7 +653,13 @@ if run_analysis:
                     ec1.metric(txt('earn_date'), earn_date)
                     est_eps = latest_earnings.get('EPS Estimate'); ec2.metric(txt('earn_est_eps'), f"{est_eps:.2f}" if pd.notna(est_eps) else "-")
                     act_eps = latest_earnings.get('Reported EPS'); ec3.metric(txt('earn_act_eps'), f"{act_eps:.2f}" if pd.notna(act_eps) else "-")
-                    surprise = latest_earnings.get('Surprise(%)'); ec4.metric(txt('earn_surprise'), f"{surprise*100:.2f}%" if pd.notna(surprise) else "-", delta="Positive" if pd.notna(surprise) and surprise > 0 else "Negative" if pd.notna(surprise) and surprise < 0 else None)
+                    
+                    # --- FIX: REMOVE MULTIPLICATION BY 100 ---
+                    surprise = latest_earnings.get('Surprise(%)')
+                    ec4.metric(txt('earn_surprise'), 
+                               f"{surprise:.2f}%" if pd.notna(surprise) else "-", 
+                               delta="Positive" if pd.notna(surprise) and surprise > 0 else "Negative" if pd.notna(surprise) and surprise < 0 else None)
+
             else: st.info("No specific earnings calendar data found.")
 
             st.markdown("---")
@@ -663,7 +668,7 @@ if run_analysis:
             st.subheader(txt('qq_title'))
             q_stmt = data['quarterly_financials']
             
-            # FIX: Strict check for sufficient columns (at least 2)
+            # Strict check for sufficient columns
             if q_stmt is not None and not q_stmt.empty and q_stmt.shape[1] >= 2:
                 curr = q_stmt.iloc[:, 0]
                 prev = q_stmt.iloc[:, 1]
@@ -699,7 +704,7 @@ if run_analysis:
             st.markdown("---")
             st.subheader(txt('ai_summary_title'))
             
-            # FIX: Safer logic for fetching Q-Revenue for Context
+            # Safer logic for fetching Q-Revenue for Context
             q_rev_disp = "N/A"
             if q_stmt is not None and not q_stmt.empty and q_stmt.shape[1] > 0:
                 try:
