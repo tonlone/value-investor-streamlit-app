@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 import re
 from datetime import datetime
-import requests # Needed for the fix
+import pytz
 from groq import Groq
 
 # --- PAGE CONFIGURATION ---
@@ -276,15 +276,9 @@ def fmt_date(ts):
     except: return str(ts)
 
 def get_stock_data(ticker):
-    # --- FIX: USE REQUESTS SESSION TO AVOID CLOUD BLOCKING ---
-    session = requests.Session()
-    session.headers.update({
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    })
-
     try:
-        # Pass session to Ticker
-        stock = yf.Ticker(ticker, session=session)
+        # Standard yfinance call (No custom session)
+        stock = yf.Ticker(ticker)
         info = stock.info
         if not info: return None
         
@@ -325,9 +319,7 @@ def get_stock_data(ticker):
             "history": hist, "dividends": divs, "raw_info": info,
             "earnings_dates": earnings_dates, "quarterly_financials": quarterly_financials, "news": news
         }
-    except Exception as e:
-        st.error(f"Data Fetch Error: {e}")
-        return None
+    except: return None
 
 def calculate_technicals(df):
     if df.empty or len(df) < 200: return None
@@ -672,7 +664,7 @@ if run_analysis:
                                delta="Positive" if pd.notna(surprise) and surprise > 0 else "Negative" if pd.notna(surprise) and surprise < 0 else None)
             else: 
                 # Fallback if specific "earnings_dates" is blocked but we have recent data
-                st.info("Specific earnings calendar date not found, but checking quarterly data...")
+                st.info("No specific earnings calendar data found.")
 
             st.markdown("---")
             
